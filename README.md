@@ -2,7 +2,7 @@
 
 專為臨床醫療人員、藥局採購與藥師設計的西藥供應狀態監測面板。本系統透過自動化排程介接衛福部食藥署開放資料，提供即時、視覺化且易於檢索的藥品短缺與替代資訊。
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Click%20Here-blue?style=for-the-badge)](https://lianggaga927-beep.github.io/TFDA-drug-shortage-dashboard/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Click%20Here-blue?style=for-the-badge)](https://liangrxdev.github.io/TFDA-drug-shortage-dashboard/)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg?logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646cff.svg?logo=vite)
