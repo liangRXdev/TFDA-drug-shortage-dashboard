@@ -1,9 +1,44 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  // 必須與您的 GitHub Repository 名稱完全一致，大小寫須相符
-  base: '/TFDA-drug-shortage-dashboard/', 
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['favicon.svg'],
+      manifest: {
+        name: '西藥供應資訊儀表板',
+        short_name: 'Drug Short',
+        description: '整合食藥署西藥供應短缺資訊，每週自動更新',
+        theme_color: '#0891b2',
+        background_color: '#f0f4f8',
+        display: 'standalone',
+        lang: 'zh-TW',
+        start_url: '/TFDA-drug-shortage-dashboard/',
+        scope: '/TFDA-drug-shortage-dashboard/',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.endsWith('supply_status_latest.json'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'shortage-data-v1',
+              networkTimeoutSeconds: 10,
+              expiration: { maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+    }),
+  ],
+  base: '/TFDA-drug-shortage-dashboard/',
 })
