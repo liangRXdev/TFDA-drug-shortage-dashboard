@@ -97,7 +97,8 @@ const useCompositeStats = (allData: DrugRecord[]) => {
 export default function App() {
   const [data, setData] = useState<SupplyData | null>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [fetchError, setFetchError] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [timeMode, setTimeMode] = useState<'month' | 'year'>('month');
   
@@ -112,7 +113,7 @@ export default function App() {
     fetch(`${import.meta.env.BASE_URL}data/supply_status_latest.json`)
       .then(res => res.json())
       .then(json => { setData(json); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
   // 核心資料管線：精準去重 -> 排序 -> 過濾
@@ -199,6 +200,22 @@ export default function App() {
       <div style={{ width: '48px', height: '48px', border: '4px solid #e2e8f0', borderTop: '4px solid #2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <p style={{ color: '#64748b', fontWeight: 600 }}>系統讀取中…</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  if (fetchError) return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', gap: '12px', padding: '24px' }}>
+      <div style={{ fontSize: '48px' }}>📡</div>
+      <p style={{ color: '#0f172a', fontWeight: 700, fontSize: '18px', margin: 0 }}>無法載入供應資料</p>
+      <p style={{ color: '#64748b', fontSize: '14px', margin: 0, textAlign: 'center' }}>
+        請確認網路連線後重新整理頁面。<br />若先前已造訪過本站，快取資料應可自動還原。
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        style={{ background: '#0891b2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
+      >
+        重新整理
+      </button>
     </div>
   );
 

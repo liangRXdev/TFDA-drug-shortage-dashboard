@@ -7,8 +7,20 @@ export default function PwaBanners() {
     updateServiceWorker,
   } = useRegisterSW()
 
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const [showInstall, setShowInstall] = useState(false)
   const deferredPrompt = useRef<Event & { prompt: () => void } | null>(null)
+
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -27,6 +39,22 @@ export default function PwaBanners() {
 
   return (
     <>
+      {isOffline && (
+        <div style={{
+          background: '#fef3c7',
+          borderBottom: '2px solid #fcd34d',
+          color: '#92400e',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.875rem',
+          fontWeight: 500,
+        }}>
+          <span>⚠️ 目前離線，顯示本機快取資料（每週更新）</span>
+        </div>
+      )}
+
       {needRefresh && (
         <div style={{
           background: '#eff6ff',
