@@ -961,28 +961,32 @@ body {
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .nav__inner { 
-    flex-direction: column; 
-    align-items: stretch; 
+  .nav__inner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
   }
-  
+
   .nav__brand {
-    flex: 1 0 auto;
+    flex: 1 1 auto;
+    min-width: 0;
   }
-  
-  .nav__stats { 
+
+  .nav__stats {
     display: flex;
-    width: 100%;
-    justify-content: space-around;
+    flex: 0 0 auto;
+    gap: 6px;
   }
-  
-  .search-wrap { 
+
+  .search-wrap {
+    order: 10;
+    flex: 1 0 100%;
     width: 100%;
-    order: -1;
   }
-  
-  .search-input { 
-    width: 100%; 
+
+  .search-input {
+    width: 100%;
   }
   
   .main { 
