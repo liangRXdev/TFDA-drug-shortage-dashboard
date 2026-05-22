@@ -50,6 +50,26 @@ const extractRecoveryTime = (text: string) => {
   return match ? match[0] : null;
 };
 
+function groupByYearMonth(list: DrugRecord[]) {
+  const map: Record<string, Record<string, DrugRecord[]>> = {};
+  list.forEach(item => {
+    const parts = (item.公告更新時間 || '').split('/');
+    const year = parts[0] || '未知';
+    const month = parts[1]?.padStart(2, '0') || '00';
+    if (!map[year]) map[year] = {};
+    if (!map[year][month]) map[year][month] = [];
+    map[year][month].push(item);
+  });
+  return Object.entries(map)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([year, months]) => ({
+      year,
+      months: Object.entries(months)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([month, items]) => ({ month, items }))
+    }));
+}
+
 // ----------------------------------------------------------------------
 // 統計 Hook
 // ----------------------------------------------------------------------
@@ -122,16 +142,14 @@ export default function App() {
       .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
-  // 核心資料管線：精準去重 -> 排序 -> 過濾
-  const processedData = useMemo(() => {
-    if (!data) return { all: [], availableYears: [], noAlt: [], withAlt: [], resolved: [] };
+  // 核心資料管線 Step 1：殭屍清除 + meta 掛載（不含篩選）
+  const cleanedData = useMemo(() => {
+    if (!data) return { all: [], availableYears: [], noAlt: 0, withAlt: 0, resolved: 0 };
 
     const raw106 = (data.datasets['54506_resolved'] || []).map(i => ({ ...i, _theme: 'emerald' as Theme }));
     const raw104 = (data.datasets['54504_with_alternative'] || []).map(i => ({ ...i, _theme: 'amber' as Theme }));
     const raw105 = (data.datasets['54505_no_alternative'] || []).map(i => ({ ...i, _theme: 'red' as Theme }));
 
-    // --- 🚀 修復：時間感知的殭屍紀錄清除邏輯 ---
-    // 1. 紀錄每個字號「最新」的解除時間
     const resolvedDates = new Map<string, number>();
     raw106.forEach(i => {
       const license = (i.許可證字號 || '').trim();
@@ -143,10 +161,9 @@ export default function App() {
       }
     });
 
-    // 2. 過濾 104/105：如果該字號有「更晚或同日」的解除紀錄，才判定為殭屍並剔除
     const clean104 = raw104.filter(i => {
       const license = (i.許可證字號 || '').trim();
-      if (!license) return true; // 無字號無法確認，安全保留
+      if (!license) return true;
       const resTime = resolvedDates.get(license);
       const myTime = new Date(i.公告更新時間).getTime();
       return !(resTime && resTime >= myTime);
@@ -160,17 +177,28 @@ export default function App() {
       return !(resTime && resTime >= myTime);
     });
 
-    // 3. 重新組合所有真實資料（過濾品名與字號均空的 corrupt records）
-    let all = [...clean105, ...clean104, ...raw106]
+    const all = [...clean105, ...clean104, ...raw106]
       .filter(i => (i.中文品名 || '').trim() || (i.許可證字號 || '').trim())
       .map(item => ({
-      ...item,
-      _days: getDaysDiff(item.公告更新時間),
-      _altText: extractAlternative(item.供應狀態)
-    }));
-    // --------------------------------------------
+        ...item,
+        _days: getDaysDiff(item.公告更新時間),
+        _altText: extractAlternative(item.供應狀態)
+      }));
 
     const availableYears = Array.from(new Set(all.map(i => (i.公告更新時間||'').split('/')[0]))).filter(Boolean).sort().reverse();
+
+    return {
+      all,
+      availableYears,
+      noAlt: all.filter(i => i._theme === 'red').length,
+      withAlt: all.filter(i => i._theme === 'amber').length,
+      resolved: all.filter(i => i._theme === 'emerald').length,
+    };
+  }, [data]);
+
+  // 核心資料管線 Step 2：排序 + 篩選
+  const processedData = useMemo(() => {
+    let all = [...cleanedData.all];
 
     all.sort((a, b) => {
       if (sortMode === 'newest') return new Date(b.公告更新時間).getTime() - new Date(a.公告更新時間).getTime();
@@ -192,13 +220,14 @@ export default function App() {
       });
     }
 
-    return { 
-      all, availableYears,
+    return {
+      all,
+      availableYears: cleanedData.availableYears,
       noAlt: all.filter(i => i._theme === 'red'),
       withAlt: all.filter(i => i._theme === 'amber'),
-      resolved: all.filter(i => i._theme === 'emerald')
+      resolved: all.filter(i => i._theme === 'emerald'),
     };
-  }, [data, debouncedSearch, filterStatus, filterYear, filterMonth, showLatestTen, sortMode]);
+  }, [cleanedData, debouncedSearch, filterStatus, filterYear, filterMonth, showLatestTen, sortMode]);
 
   const stats = useCompositeStats(processedData.all);
   const chartData = timeMode === 'month' ? stats.monthlyChart : stats.yearlyChart;
@@ -231,31 +260,46 @@ export default function App() {
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f4f8', display: 'flex', flexDirection: 'column', fontFamily: '"Noto Sans TC", sans-serif' }}>
       <PwaBanners />
       {/* 導覽列 */}
-      <nav style={{ backgroundColor: '#0f172a', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <div style={{ maxWidth: '1152px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white' }}>⚕</div>
+      <nav className="nav">
+        <div className="nav__inner">
+          <div className="nav__brand">
+            <div className="nav__icon">⚕</div>
             <div>
-              <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '18px', lineHeight: 1.2 }}>西藥供應資訊儀表板</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px' }}>NHI Drug Supply Monitor</div>
+              <div className="nav__title">西藥供應資訊儀表板</div>
+              <div className="nav__subtitle">NHI Drug Supply Monitor</div>
+              {data?.last_updated && (
+                <div className="nav__meta">資料更新：{data.last_updated.slice(0, 16).replace('T', ' ')}</div>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', width: '100%', maxWidth: '350px' }}>
-            {data?.last_updated && (
-              <span style={{ color: '#475569', fontSize: '11px', letterSpacing: '0.02em' }}>
-                資料更新：{data.last_updated.slice(0, 16).replace('T', ' ')}
-              </span>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 16px', width: '100%' }}>
-              <span style={{ color: '#475569', fontSize: '16px', marginRight: '8px' }}>🔍</span>
-              <input type="text" placeholder="搜尋藥品..." onChange={e => setSearchTerm(e.target.value)} style={{ border: 'none', outline: 'none', flex: 1, fontSize: '15px', color: '#e2e8f0', background: 'transparent' }} />
+          <div className="nav__stats">
+            <div className="stat-chip stat-chip--red">
+              <span className="stat-chip__dot" />
+              無替代 {cleanedData.noAlt}
             </div>
+            <div className="stat-chip stat-chip--amber">
+              <span className="stat-chip__dot" />
+              有替代 {cleanedData.withAlt}
+            </div>
+            <div className="stat-chip stat-chip--emerald">
+              <span className="stat-chip__dot" />
+              已解除 {cleanedData.resolved}
+            </div>
+          </div>
+          <div className="search-wrap">
+            <span className="search-wrap__icon">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="搜尋藥品..."
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
       </nav>
 
       {/* 主內容區 */}
-      <main style={{ maxWidth: '1152px', margin: '24px auto 0', padding: '0 16px', flex: 1, width: '100%', boxSizing: 'border-box' }}>
+      <main className="main" style={{ flex: 1 }}>
         
         {/* 分頁切換 */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
@@ -377,75 +421,114 @@ export default function App() {
 // ----------------------------------------------------------------------
 function Section({ title, colorTheme, list }: any) {
   if (!list.length) return null;
-  const p = { red: '#ef4444', amber: '#f59e0b', emerald: '#10b981' }[colorTheme as Theme];
+  const grouped = groupByYearMonth(list);
   return (
-    <section style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: `1px solid ${p}40`, overflow: 'hidden', marginBottom: '16px' }}>
-      <div style={{ backgroundColor: `${p}10`, borderBottom: `1px solid ${p}40`, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ width: '4px', height: '24px', backgroundColor: p, borderRadius: '2px' }} />
-        <h2 style={{ fontSize: '16px', fontWeight: 700, flex: 1, margin: 0, color: '#1e293b' }}>{title}</h2>
-        <span style={{ backgroundColor: p, color: '#fff', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '99px' }}>{list.length} 筆</span>
+    <section className={`section section--${colorTheme}`}>
+      <div className="section__header">
+        <div className="section__bar" />
+        <h2 className="section__title">{title}</h2>
+        <div className="section__divider" />
+        <span className="section__count">{list.length} 筆</span>
       </div>
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {list.map((item: any, i: number) => <DrugCard key={item.許可證字號 || item.編號 || String(i)} item={item} theme={colorTheme} />)}
+      <div className="section__body">
+        {grouped.map(({ year, months }, yi) => (
+          <YearGroup key={year} year={year} months={months} theme={colorTheme} defaultOpen={yi === 0} />
+        ))}
       </div>
     </section>
   );
 }
 
-function DrugCard({ item, theme }: any) {
+function YearGroup({ year, months, theme, defaultOpen }: { year: string, months: { month: string, items: DrugRecord[] }[], theme: Theme, defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const total = months.reduce((s, m) => s + m.items.length, 0);
+  return (
+    <div className="year-group">
+      <button className="year-group__toggle" onClick={() => setOpen(!open)}>
+        <span className="year-group__label">{year} 年</span>
+        <div className="year-group__meta">
+          <span>{total} 筆</span>
+          <span className={`year-group__chevron${open ? ' year-group__chevron--open' : ''}`}>▼</span>
+        </div>
+      </button>
+      {open && (
+        <div className="year-group__content">
+          {months.map(({ month, items }, mi) => (
+            <MonthGroup key={month} month={month} items={items} theme={theme} defaultOpen={mi === 0} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonthGroup({ month, items, theme, defaultOpen }: { month: string, items: DrugRecord[], theme: Theme, defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="month-group">
+      <button className="month-group__toggle" onClick={() => setOpen(!open)}>
+        <span className="month-group__label">{month}月 · {items.length} 筆</span>
+        <span className={`month-group__chevron${open ? ' month-group__chevron--open' : ''}`}>▼</span>
+      </button>
+      {open && (
+        <div className="month-group__list">
+          {items.map((item, i) => (
+            <DrugCard key={item.許可證字號 || item.編號 || String(i)} item={item} theme={theme} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
   const [open, setOpen] = useState(false);
   const rec = extractRecoveryTime(item.供應狀態);
-  const t = { red: {bg:'#fee2e2', text:'#991b1b'}, amber: {bg:'#fef3c7', text:'#92400e'}, emerald: {bg:'#d1fae5', text:'#065f46'} }[theme as Theme];
-  
+  const [zhName, enName] = (item.中文品名 || '').split('\n');
+  const d = item._days ?? 0;
+
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', backgroundColor: '#fff', transition: 'box-shadow 0.2s', boxShadow: open ? '0 4px 12px rgba(0,0,0,0.08)' : '0 1px 2px rgba(0,0,0,0.02)' }}>
-      <div onClick={() => setOpen(!open)} style={{ padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>{item.公告更新時間}</span>
-            {theme !== 'emerald' && (() => {
-              const d = item._days ?? 0;
-              if (d > 30) return (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#b91c1c', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fca5a5' }}>
-                  🔴 缺藥 {d} 天
-                </span>
-              );
-              if (d >= 14) return (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', backgroundColor: '#ffedd5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
-                  🟠 缺藥 {d} 天
-                </span>
-              );
-              return (
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-                  📋 缺藥 {d} 天
-                </span>
-              );
-            })()}
-          </div>
-          <span style={{ color: '#94a3b8', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▾</span>
+    <div className="drug-card">
+      <div
+        className={`drug-card__row${open ? ' drug-card__row--expanded' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        <div className="drug-card__info">
+          <div className="drug-card__name">{zhName}</div>
+          {enName && <div className="drug-card__code">{enName}</div>}
+          <div className="drug-card__code">{item.許可證字號}</div>
+          <div className="drug-card__date">{item.公告更新時間}</div>
         </div>
-        
-        {(() => {
-          const [zhName, enName] = (item.中文品名 || '').split('\n');
-          return (
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', lineHeight: 1.4 }}>{zhName}</div>
-              {enName && <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px', lineHeight: 1.3 }}>{enName}</div>}
-            </div>
-          );
-        })()}
-        <div style={{ fontSize: '13px', color: '#94a3b8', fontFamily: 'monospace' }}>{item.許可證字號}</div>
-        
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
-           {item._altText && theme !== 'emerald' && <span style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1', backgroundColor: '#e0f2fe', padding: '4px 8px', borderRadius: '6px' }}>💡 替代：{item._altText}</span>}
-           {rec && <span style={{ fontSize: '12px', fontWeight: 600, color: t.text, backgroundColor: t.bg, padding: '4px 8px', borderRadius: '6px' }}>⏳ {rec}</span>}
+        <div className="drug-card__right">
+          {theme !== 'emerald' && (
+            <span className={`recovery-tag recovery-tag--${d > 30 ? 'red' : d >= 14 ? 'amber' : 'default'}`}>
+              缺藥 {d} 天
+            </span>
+          )}
+          {item._altText && theme !== 'emerald' && (
+            <span className="recovery-tag recovery-tag--amber" style={{ maxWidth: '140px' }}>
+              💡 {item._altText}
+            </span>
+          )}
+          {rec && (
+            <span className={`recovery-tag recovery-tag--${theme === 'emerald' ? 'emerald' : theme}`} style={{ maxWidth: '160px' }}>
+              ⏳ {rec}
+            </span>
+          )}
+          <span className={`drug-card__chevron${open ? ' drug-card__chevron--open' : ''}`}>▼</span>
         </div>
       </div>
-      
       {open && (
-        <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderTop: '1px dashed #cbd5e1', fontSize: '14px', whiteSpace: 'pre-line', color: '#334155', lineHeight: 1.6 }}>
-          <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: 700 }}>📄 官方供應狀態說明</div>
-          {item.供應狀態?.replace(/\\r\\n/g, '\n')}
+        <div className="drug-detail">
+          <div className="drug-detail__inner">
+            <div className="drug-detail__titlebar">
+              <div className={`drug-detail__dot drug-detail__dot--${theme === 'emerald' ? 'green' : theme}`} />
+              <span className="drug-detail__label">官方供應狀態說明</span>
+            </div>
+            <div className="drug-detail__body">
+              {item.供應狀態?.replace(/\\r\\n/g, '\n')}
+            </div>
+          </div>
         </div>
       )}
     </div>
