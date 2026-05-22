@@ -28,11 +28,10 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.endsWith('supply_status_latest.json'),
-            handler: 'NetworkFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'shortage-data-v1',
-              networkTimeoutSeconds: 10,
-              expiration: { maxAgeSeconds: 60 * 60 * 24 * 7 },
+              expiration: { maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
