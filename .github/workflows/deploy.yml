@@ -1,11 +1,16 @@
 name: Deploy React to GitHub Pages
 
 on:
-  # 當有程式碼推送至 main 分支時觸發 (包含自動抓資料腳本的 commit)
+  # 當有程式碼推送至 main 分支時觸發
   push:
     branches: ["main"]
   # 允許從 GitHub 網頁手動觸發
   workflow_dispatch:
+  # FDA 資料自動更新完成後觸發（GITHUB_TOKEN push 不觸發 push 事件）
+  workflow_run:
+    workflows: ["FDA Data Fetch & Update"]
+    types: [completed]
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -18,6 +23,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
