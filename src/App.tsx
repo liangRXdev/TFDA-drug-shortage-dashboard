@@ -154,8 +154,10 @@ export default function App() {
       return !(resTime && resTime >= myTime);
     });
 
-    // 3. 重新組合所有真實資料
-    let all = [...clean105, ...clean104, ...raw106].map(item => ({
+    // 3. 重新組合所有真實資料（過濾品名與字號均空的 corrupt records）
+    let all = [...clean105, ...clean104, ...raw106]
+      .filter(i => (i.中文品名 || '').trim() || (i.許可證字號 || '').trim())
+      .map(item => ({
       ...item,
       _days: getDaysDiff(item.公告更新時間),
       _altText: extractAlternative(item.供應狀態)
