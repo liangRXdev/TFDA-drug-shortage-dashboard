@@ -103,11 +103,17 @@ export default function App() {
   const [timeMode, setTimeMode] = useState<'month' | 'year'>('month');
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [showLatestTen, setShowLatestTen] = useState(false);
   const [sortMode, setSortMode] = useState<'newest'|'longest'|'name'>('newest');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}data/supply_status_latest.json`)
@@ -178,7 +184,7 @@ export default function App() {
     } else {
       all = all.filter(i => {
         const parts = (i.公告更新時間 || '').split('/');
-        const matchSearch = (i.中文品名 || '').toLowerCase().includes(searchTerm.toLowerCase()) || (i.許可證字號 || '').includes(searchTerm);
+        const matchSearch = (i.中文品名 || '').toLowerCase().includes(debouncedSearch.toLowerCase()) || (i.許可證字號 || '').includes(debouncedSearch);
         const matchStatus = filterStatus === 'all' ? true : i._theme === filterStatus;
         const matchYear = filterYear === 'all' ? true : parts[0] === filterYear;
         const matchMonth = filterMonth === 'all' ? true : parts[1]?.padStart(2, '0') === filterMonth;
@@ -192,7 +198,7 @@ export default function App() {
       withAlt: all.filter(i => i._theme === 'amber'),
       resolved: all.filter(i => i._theme === 'emerald')
     };
-  }, [data, searchTerm, filterStatus, filterYear, filterMonth, showLatestTen, sortMode]);
+  }, [data, debouncedSearch, filterStatus, filterYear, filterMonth, showLatestTen, sortMode]);
 
   const stats = useCompositeStats(processedData.all);
   const chartData = timeMode === 'month' ? stats.monthlyChart : stats.yearlyChart;
@@ -380,7 +386,7 @@ function Section({ title, colorTheme, list }: any) {
         <span style={{ backgroundColor: p, color: '#fff', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '99px' }}>{list.length} 筆</span>
       </div>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {list.map((item: any, i: number) => <DrugCard key={i} item={item} theme={colorTheme} />)}
+        {list.map((item: any, i: number) => <DrugCard key={item.許可證字號 || item.編號 || String(i)} item={item} theme={colorTheme} />)}
       </div>
     </section>
   );
@@ -397,12 +403,37 @@ function DrugCard({ item, theme }: any) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>{item.公告更新時間}</span>
-            {theme !== 'emerald' && <span style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '6px' }}>🔥 缺藥 {item._days} 天</span>}
+            {theme !== 'emerald' && (() => {
+              const d = item._days ?? 0;
+              if (d > 30) return (
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#b91c1c', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fca5a5' }}>
+                  🔴 缺藥 {d} 天
+                </span>
+              );
+              if (d >= 14) return (
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', backgroundColor: '#ffedd5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
+                  🟠 缺藥 {d} 天
+                </span>
+              );
+              return (
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                  📋 缺藥 {d} 天
+                </span>
+              );
+            })()}
           </div>
           <span style={{ color: '#94a3b8', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▾</span>
         </div>
         
-        <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>{item.中文品名}</div>
+        {(() => {
+          const [zhName, enName] = (item.中文品名 || '').split('\n');
+          return (
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', lineHeight: 1.4 }}>{zhName}</div>
+              {enName && <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px', lineHeight: 1.3 }}>{enName}</div>}
+            </div>
+          );
+        })()}
         <div style={{ fontSize: '13px', color: '#94a3b8', fontFamily: 'monospace' }}>{item.許可證字號}</div>
         
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
