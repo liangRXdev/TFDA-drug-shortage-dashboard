@@ -1004,10 +1004,18 @@ body {
     align-items: flex-start;
   }
   
-  .drug-card__name { 
+  .drug-card__name {
     font-size: 13px;
   }
-  
+
+  .section__header {
+    padding: 0 12px;
+  }
+
+  .section__divider {
+    display: none;
+  }
+
   .recovery-tag { 
     max-width: 150px; 
   }
