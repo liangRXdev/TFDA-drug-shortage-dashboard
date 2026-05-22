@@ -40,7 +40,7 @@ const getDaysDiff = (dateStr: string) => {
 
 const extractAlternative = (text: string) => {
   if (!text) return null;
-  const match = text.match(/(?:建議替代|替代藥品|替代品項|改用|可由)[：:\s]*([^。，\n;；]+)/);
+  const match = text.match(/(?:建議替代|替代藥品|替代品項|改用|可由)[：:\s]*([^。，\n;；之]+)/);
   return match ? match[1].trim() : null;
 };
 
