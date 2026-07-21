@@ -13,9 +13,13 @@ import os
 import sys
 import json
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import requests
+
+# CR-11：GitHub runner 為 UTC，改以台灣時間（UTC+8）產生 last_updated，
+# 避免台灣使用者看到少 8 小時的更新時間。
+TAIPEI_TZ = timezone(timedelta(hours=8))
 
 API_ENDPOINTS = {
     "54504_with_alternative": "https://data.fda.gov.tw/data/opendata/export/104/json",
@@ -129,7 +133,7 @@ def check_sanity(datasets, previous=None):
 
 
 def build_payload(datasets, now=None):
-    now = now or datetime.now()
+    now = now or datetime.now(TAIPEI_TZ)
     return {
         "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
         "datasets": datasets,
