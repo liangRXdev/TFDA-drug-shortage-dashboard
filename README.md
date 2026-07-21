@@ -41,5 +41,27 @@
 
 ### 1. 取得專案
 ```bash
-git clone [https://github.com/您的帳號/TFDA-drug-shortage-dashboard.git](https://github.com/您的帳號/TFDA-drug-shortage-dashboard.git)
+git clone https://github.com/您的帳號/TFDA-drug-shortage-dashboard.git
 cd TFDA-drug-shortage-dashboard
+```
+
+### 2. 前端開發
+```bash
+npm install        # 安裝相依套件
+npm run dev        # 啟動本機開發伺服器
+npm run build      # 型別檢查 (tsc) + Vite 打包 → dist/
+npm run lint       # ESLint 檢查
+```
+
+### 3. 更新資料 (ETL)
+```bash
+# 抓取食藥署 104/105/106 開放資料，合併為 public/data/supply_status_latest.json
+# 採 fail-closed：任一端點連線／HTTP／JSON／驗證失敗即中止，且不覆寫既有資料
+uv run --with requests python scripts/fetch_fda_data.py
+```
+
+### 4. 測試
+```bash
+npm run test                                        # 前端資料管線單元測試 (Vitest)
+uv run --with pytest --with requests pytest scripts # ETL fail-closed／schema 測試 (pytest)
+```
