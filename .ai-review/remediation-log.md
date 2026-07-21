@@ -4,7 +4,7 @@
 > `verdict.md` 保留為原始獨立判定（稽核用），不因後續修復而更動。
 
 - **日期**：2026-07-21
-- **測試狀態**：Vitest 59 passed／pytest 20 passed（共 79）；`npm run build` 綠
+- **測試狀態**：Vitest 71 passed／pytest 20 passed（共 91）；`npm run build` 綠；`eslint` 乾淨
 
 ---
 
@@ -54,10 +54,21 @@
 
 CR-03 為 UI 文案層修正（`getDaysDiff` 數值語意本就是「公告距今」，行為不變），無需新增單元測試。
 
+## 批次 4：Medium 批次清理（CR-07/08/09/10/11/14）
+
+| Finding | 狀態 | 修法 | 佐證 |
+|---|---|---|---|
+| **CR-07**（Medium）替代藥雜訊誤標為藥名 | ✅ 已修 | 不收緊擷取 regex（維持高召回），新增 `alternativeConfidence()`：high（含許可證號/Latin 藥名/◎ 標記）才顯示 💡 候選；low（URL/泛稱/過短）改顯示「ℹ️ 公告含替代資訊，請展開查看」 | vitest `alternativeConfidence (CR-07)`（4） |
+| **CR-08**（Medium）完全重複列膨脹卡片與統計 | ✅ 已修 | `cleanSupplyData` 依「資料集＋證號＋日期＋供應狀態」去除完全重複列，不合併不同 episode；連帶消除 React key 碰撞 | vitest cleanSupplyData CR-08（2） |
+| **CR-09**（Medium）「最新十筆」語意錯亂 | ✅ 已修 | 抽出 `selectVisibleRecords`：最新十筆固定依公告日期取前 10、忽略 sortMode/篩選；App 於該模式停用搜尋框與排序選項 | vitest `selectVisibleRecords (CR-09)`（4） |
+| **CR-10**（Medium）前端無 res.ok/schema 防線 | ✅ 已修 | fetch 檢查 `res.ok`，並以 `isSupplyData()` type guard 驗證結構後才 setData | vitest `isSupplyData (CR-10)`（2） |
+| **CR-11**（Medium）ETL 時間戳缺時區 | ✅ 已修 | `build_payload` 改用台灣時間（UTC+8）產生 `last_updated`，修正 -8 小時偏移 | pytest 既有成功路徑；格式不變（前端 parseLastUpdated 相容） |
+| **CR-14**（Low）`any` 繞過型別 | ✅ 已修 | `sortMode` 用 `SortMode`、`Section` 定義 `SectionProps`，移除 2 處 `any`；eslint 由 2 error → 0 | `eslint` 乾淨 |
+
 ---
 
 ## 尚未處理（後續批次）
 
-- **CR-07 / CR-08 / CR-09 / CR-10 / CR-11 / CR-13 / CR-14**：未處理（lib 中已留 TODO）。
+- **CR-13**（Low）統計術語「項/件」定義：純文案，未動。
 - **TG-05**（PWA Playwright）：未補。
 - **依賴類 DA-02/05/06**：未處理。
