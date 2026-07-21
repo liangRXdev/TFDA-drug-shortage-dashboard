@@ -196,8 +196,17 @@ export function cleanSupplyData(data: SupplyData | null): CleanedData {
   const clean104 = raw104.filter(i => !isResolvedZombie(i));
   const clean105 = raw105.filter(i => !isResolvedZombie(i));
 
+  // 修正 CR-08：移除完全重複列（同資料集＋證號＋公告日期＋供應狀態）。
+  // 僅去除「完全相同的事件」，不依證號合併不同 episode，以保留事件歷史。
+  const seen = new Set<string>();
   const all = [...clean105, ...clean104, ...raw106]
     .filter(i => (i.中文品名 || '').trim() || (i.許可證字號 || '').trim())
+    .filter(i => {
+      const key = `${i._theme}|${(i.許可證字號 || '').trim()}|${i.公告更新時間 || ''}|${i.供應狀態 || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map(item => ({
       ...item,
       _days: getDaysDiff(item.公告更新時間),
@@ -292,9 +301,6 @@ export function sortRecords(list: DrugRecord[], sortMode: SortMode): DrugRecord[
 
 // ----------------------------------------------------------------------
 // 篩選
-//
-// TODO(CR-09): 呼叫端的「顯示最新十筆」會跳過本篩選，且切片受目前 sortMode 影響。
-//   本函式僅負責 search/status/year/month 交集，語意問題在呼叫端。
 // ----------------------------------------------------------------------
 export interface FilterOptions {
   debouncedSearch: string;
@@ -313,4 +319,62 @@ export function filterRecords(list: DrugRecord[], opts: FilterOptions): DrugReco
     const matchMonth = filterMonth === 'all' ? true : parts[1]?.padStart(2, '0') === filterMonth;
     return matchSearch && matchStatus && matchYear && matchMonth;
   });
+}
+
+// ----------------------------------------------------------------------
+// 清單可見資料選取（CR-09）
+//
+// 修正 CR-09：明確定義「顯示最新十筆」語意 = 依公告日期最新的 10 筆，
+// 不受 sortMode 影響、且刻意忽略 search/status/year/month（呼叫端須停用該些控制項）。
+// 一般模式則先排序再套用篩選。
+// ----------------------------------------------------------------------
+export interface VisibleOptions extends FilterOptions {
+  showLatestTen: boolean;
+  sortMode: SortMode;
+}
+
+export function selectVisibleRecords(list: DrugRecord[], opts: VisibleOptions): DrugRecord[] {
+  if (opts.showLatestTen) {
+    return sortRecords(list, 'newest').slice(0, 10);
+  }
+  return filterRecords(sortRecords(list, opts.sortMode), opts);
+}
+
+// ----------------------------------------------------------------------
+// 替代藥信心分級（CR-07）
+//
+// 不收緊擷取 regex（維持高召回），改在顯示層加 provenance：
+// - high：像藥名（含許可證號、Latin 藥名、或 ◎ 清單標記）→ 可顯示為替代品候選
+// - low：URL、明顯泛稱/非藥名片段、過短 → 不當成藥名，僅提示「請展開查看」
+// ----------------------------------------------------------------------
+export type AltConfidence = 'high' | 'low';
+
+const ALT_LOW_MARKERS = /(詳述如下|不盡相似|請洽|評估|病人|如下|其他合適|請參|依臨床)/;
+
+export function alternativeConfidence(altText: string | null | undefined): AltConfidence | null {
+  if (!altText) return null;
+  const t = altText.trim();
+  if (!t) return null;
+  if (/https?:\/\//.test(t)) return 'low';
+  if (ALT_LOW_MARKERS.test(t)) return 'low';
+  if (t.length < 3) return 'low';
+  if (/字第\s*\d+\s*號/.test(t) || /[A-Za-z]{3,}/.test(t) || t.includes('◎')) return 'high';
+  return 'low';
+}
+
+// ----------------------------------------------------------------------
+// 執行期資料結構守衛（CR-10）
+//
+// 前端 fetch 之第二道防線：確認 last_updated 為字串、datasets 為物件，
+// 且出現的資料集值皆為陣列。與 ETL fail-closed 互補，非取代。
+// ----------------------------------------------------------------------
+export function isSupplyData(x: unknown): x is SupplyData {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  if (typeof o.last_updated !== 'string') return false;
+  if (!o.datasets || typeof o.datasets !== 'object') return false;
+  for (const v of Object.values(o.datasets as Record<string, unknown>)) {
+    if (!Array.isArray(v)) return false;
+  }
+  return true;
 }

@@ -13,6 +13,9 @@ import {
   computeCompositeStats,
   sortRecords,
   filterRecords,
+  selectVisibleRecords,
+  alternativeConfidence,
+  isSupplyData,
   type DrugRecord,
   type SupplyData,
   type Theme,
@@ -307,6 +310,25 @@ describe('cleanSupplyData zombie removal (TG-03)', () => {
     expect(out.noAlt).toBe(0);
   });
 
+  it('CR-08：完全重複列（同資料集＋證號＋日期＋狀態）只保留一筆', () => {
+    const dup = { 許可證字號: 'DUP', 中文品名: 'DrugDup', 公告更新時間: '2024/08/20', 供應狀態: '已解除' };
+    const data = build({ '54506_resolved': [rec(dup), rec(dup)] });
+    const out = cleanSupplyData(data);
+    expect(out.resolved).toBe(1);
+    expect(out.all).toHaveLength(1);
+  });
+
+  it('CR-08：同證號但不同公告日期的合法 episode 不被去重', () => {
+    const data = build({
+      '54505_no_alternative': [
+        rec({ 許可證字號: 'X', 中文品名: 'DrugX', 公告更新時間: '2025/01/01' }),
+        rec({ 許可證字號: 'X', 中文品名: 'DrugX', 公告更新時間: '2025/09/01' }),
+      ],
+    });
+    const out = cleanSupplyData(data);
+    expect(out.noAlt).toBe(2);
+  });
+
   it('_days 與 _altText meta 有被掛載', () => {
     const data = build({
       '54505_no_alternative': [rec({ 許可證字號: 'M', 中文品名: 'DrugM', 公告更新時間: '2026/07/11', 供應狀態: '替代藥品：Alt。' })],
@@ -446,5 +468,85 @@ describe('groupByYearMonth', () => {
   it('空公告時間歸入「未知」年', () => {
     const g = groupByYearMonth([rec({ 中文品名: 'x', 公告更新時間: '' })]);
     expect(g[0].year).toBe('未知');
+  });
+});
+
+// ======================================================================
+// selectVisibleRecords（CR-09）
+// ======================================================================
+describe('selectVisibleRecords (CR-09)', () => {
+  const list: DrugRecord[] = [
+    rec({ 中文品名: 'A', 許可證字號: 'L1', 公告更新時間: '2020/01/01', _theme: 'red' as Theme }),
+    rec({ 中文品名: 'B', 許可證字號: 'L2', 公告更新時間: '2026/06/01', _theme: 'amber' as Theme }),
+    rec({ 中文品名: 'C', 許可證字號: 'L3', 公告更新時間: '2025/12/01', _theme: 'red' as Theme }),
+  ];
+  const base = { showLatestTen: false, sortMode: 'newest' as const, debouncedSearch: '', filterStatus: 'all', filterYear: 'all', filterMonth: 'all' };
+
+  it('最新十筆：固定依公告日期最新排序，忽略 sortMode', () => {
+    // 即使 sortMode=name，最新十筆仍依日期
+    const out = selectVisibleRecords(list, { ...base, showLatestTen: true, sortMode: 'name' });
+    expect(out.map(i => i.公告更新時間)).toEqual(['2026/06/01', '2025/12/01', '2020/01/01']);
+  });
+
+  it('最新十筆：忽略 search/status/year/month 篩選', () => {
+    const out = selectVisibleRecords(list, { ...base, showLatestTen: true, filterStatus: 'red', debouncedSearch: 'ZZZ' });
+    expect(out).toHaveLength(3); // 篩選被忽略
+  });
+
+  it('最新十筆：最多 10 筆', () => {
+    const many = Array.from({ length: 25 }, (_, i) =>
+      rec({ 中文品名: `D${i}`, 許可證字號: `K${i}`, 公告更新時間: `2025/01/${String((i % 28) + 1).padStart(2, '0')}` }));
+    expect(selectVisibleRecords(many, { ...base, showLatestTen: true })).toHaveLength(10);
+  });
+
+  it('一般模式：套用排序與篩選', () => {
+    const out = selectVisibleRecords(list, { ...base, filterStatus: 'red' });
+    expect(out.every(i => i._theme === 'red')).toBe(true);
+    expect(out.map(i => i.公告更新時間)).toEqual(['2025/12/01', '2020/01/01']); // newest 排序
+  });
+});
+
+// ======================================================================
+// alternativeConfidence（CR-07）
+// ======================================================================
+describe('alternativeConfidence (CR-07)', () => {
+  it('null/空 → null', () => {
+    expect(alternativeConfidence(null)).toBeNull();
+    expect(alternativeConfidence('')).toBeNull();
+    expect(alternativeConfidence('   ')).toBeNull();
+  });
+
+  it('已知雜訊片段判為 low（不當成藥名）', () => {
+    for (const s of ['與缺藥品項成分不盡相似', '(詳述如下)', '的病人', '替代']) {
+      expect(alternativeConfidence(s)).toBe('low');
+    }
+  });
+
+  it('URL 判為 low', () => {
+    expect(alternativeConfidence('藥品圖卡連結如下：https://210.69.111.207/x')).toBe('low');
+  });
+
+  it('像藥名者判為 high', () => {
+    expect(alternativeConfidence('Foo Tablet 100mg')).toBe('high');   // Latin 藥名
+    expect(alternativeConfidence('衛署藥製字第040825號')).toBe('high'); // 許可證號
+    expect(alternativeConfidence('◎溫士頓維他命A眼藥膏')).toBe('high'); // ◎ 清單標記
+  });
+});
+
+// ======================================================================
+// isSupplyData（CR-10）
+// ======================================================================
+describe('isSupplyData (CR-10)', () => {
+  it('合法結構通過', () => {
+    expect(isSupplyData({ last_updated: '2026-07-21 00:00:00', datasets: { a: [], b: [rec({})] } })).toBe(true);
+  });
+
+  it('缺欄位 / 型別錯 / 非物件 → false', () => {
+    expect(isSupplyData(null)).toBe(false);
+    expect(isSupplyData('str')).toBe(false);
+    expect(isSupplyData({ datasets: {} })).toBe(false);            // 缺 last_updated
+    expect(isSupplyData({ last_updated: 1, datasets: {} })).toBe(false); // 型別錯
+    expect(isSupplyData({ last_updated: 'x' })).toBe(false);        // 缺 datasets
+    expect(isSupplyData({ last_updated: 'x', datasets: { a: 'not-array' } })).toBe(false);
   });
 });

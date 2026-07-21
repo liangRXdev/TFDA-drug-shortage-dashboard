@@ -9,12 +9,14 @@ import {
   type DrugRecord,
   type SupplyData,
   type Theme,
+  type SortMode,
   extractRecoveryTime,
   groupByYearMonth,
   cleanSupplyData,
   computeCompositeStats,
-  sortRecords,
-  filterRecords,
+  selectVisibleRecords,
+  alternativeConfidence,
+  isSupplyData,
   getDataAgeDays,
   isDataStale,
 } from './lib/dataPipeline'
@@ -43,7 +45,7 @@ export default function App() {
   const [filterYear, setFilterYear] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [showLatestTen, setShowLatestTen] = useState(false);
-  const [sortMode, setSortMode] = useState<'newest'|'longest'|'name'>('newest');
+  const [sortMode, setSortMode] = useState<SortMode>('newest');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -51,24 +53,28 @@ export default function App() {
   }, [searchTerm]);
 
   useEffect(() => {
+    // CR-10：檢查 res.ok，並以 isSupplyData 做執行期結構驗證（ETL fail-closed 之外的第二道防線）
     fetch(`${import.meta.env.BASE_URL}data/supply_status_latest.json`)
-      .then(res => res.json())
-      .then(json => { setData(json); setLoading(false); })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(json => {
+        if (!isSupplyData(json)) throw new Error('供應資料結構不符預期');
+        setData(json);
+        setLoading(false);
+      })
       .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
-  // 核心資料管線 Step 1：殭屍清除 + meta 掛載（不含篩選）
+  // 核心資料管線 Step 1：殭屍清除 + 去重 + meta 掛載（不含篩選）
   const cleanedData = useMemo(() => cleanSupplyData(data), [data]);
 
-  // 核心資料管線 Step 2：排序 + 篩選
+  // 核心資料管線 Step 2：排序 + 篩選（最新十筆語意見 selectVisibleRecords）
   const processedData = useMemo(() => {
-    let all = sortRecords(cleanedData.all, sortMode);
-
-    if (showLatestTen) {
-      all = all.slice(0, 10);
-    } else {
-      all = filterRecords(all, { debouncedSearch, filterStatus, filterYear, filterMonth });
-    }
+    const all = selectVisibleRecords(cleanedData.all, {
+      showLatestTen, sortMode, debouncedSearch, filterStatus, filterYear, filterMonth,
+    });
 
     return {
       all,
@@ -161,7 +167,9 @@ export default function App() {
             <input
               type="text"
               className="search-input"
-              placeholder="搜尋藥品..."
+              placeholder={showLatestTen ? '「最新十筆」模式停用搜尋' : '搜尋藥品...'}
+              disabled={showLatestTen}
+              value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
@@ -196,7 +204,7 @@ export default function App() {
                 <option value="all">月份：全部</option>
                 {Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')).map(m => <option key={m} value={m}>{m}月</option>)}
               </select>
-              <select value={sortMode} onChange={e => setSortMode(e.target.value as any)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', cursor: 'pointer' }}>
+              <select value={sortMode} disabled={showLatestTen} onChange={e => setSortMode(e.target.value as SortMode)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', cursor: 'pointer' }}>
                 <option value="newest">排序：最新公告</option>
                 <option value="longest">排序：公告距今最久</option>
                 <option value="name">排序：名稱 A-Z</option>
@@ -289,7 +297,13 @@ export default function App() {
 // ----------------------------------------------------------------------
 // 子元件區
 // ----------------------------------------------------------------------
-function Section({ title, colorTheme, list }: any) {
+interface SectionProps {
+  title: string;
+  colorTheme: Theme;
+  list: DrugRecord[];
+}
+
+function Section({ title, colorTheme, list }: SectionProps) {
   if (!list.length) return null;
   const grouped = groupByYearMonth(list);
   return (
@@ -356,6 +370,7 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
   const rec = extractRecoveryTime(item.供應狀態);
   const [zhName, enName] = (item.中文品名 || '').split('\n');
   const d = item._days ?? 0;
+  const altConfidence = alternativeConfidence(item._altText); // CR-07：替代藥信心分級
 
   return (
     <div className="drug-card">
@@ -378,9 +393,15 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
               公告距今 {d} 天
             </span>
           )}
-          {item._altText && theme !== 'emerald' && (
-            <span className="recovery-tag recovery-tag--amber" style={{ maxWidth: '140px' }}>
+          {/* CR-07：僅高信心（像藥名）才顯示為替代品候選；低信心不當成藥名，改提示展開查看 */}
+          {theme !== 'emerald' && altConfidence === 'high' && (
+            <span className="recovery-tag recovery-tag--amber" style={{ maxWidth: '140px' }} title="自公告內文擷取之替代品候選，請以官方公告為準">
               💡 {item._altText}
+            </span>
+          )}
+          {theme !== 'emerald' && altConfidence === 'low' && (
+            <span className="recovery-tag recovery-tag--default" style={{ maxWidth: '160px' }} title="公告含替代相關文字，但無法確認為藥名">
+              ℹ️ 公告含替代資訊，請展開查看
             </span>
           )}
           {rec && (
