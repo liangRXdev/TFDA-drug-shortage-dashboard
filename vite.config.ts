@@ -27,11 +27,15 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {
+            // CR-05：改用 NetworkFirst，確保線上使用者當次載入即取得最新 JSON，
+            // 網路失敗或逾時才退回 cache（離線可用）；不再因 StaleWhileRevalidate
+            // 先交付舊資料而讓臨床使用者看到陳舊供應狀態。
             urlPattern: ({ url }) => url.pathname.endsWith('supply_status_latest.json'),
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'shortage-data-v1',
-              expiration: { maxAgeSeconds: 60 * 60 * 24 },
+              networkTimeoutSeconds: 5,
+              expiration: { maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

@@ -5,110 +5,25 @@ import {
   Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 import './index.css'
-
-// ----------------------------------------------------------------------
-// 型別定義
-// ----------------------------------------------------------------------
-interface DrugRecord {
-  編號: string;
-  中文品名: string;
-  許可證字號: string;
-  供應狀態: string;
-  公告更新時間: string;
-  _theme?: Theme;
-  _days?: number;
-  _altText?: string | null;
-}
-
-interface SupplyData {
-  last_updated: string;
-  datasets: { [key: string]: DrugRecord[] };
-}
-
-type Theme = 'red' | 'amber' | 'emerald';
-
-// ----------------------------------------------------------------------
-// 工具函數
-// ----------------------------------------------------------------------
-const getDaysDiff = (dateStr: string) => {
-  if (!dateStr) return 0;
-  const parts = dateStr.split('/');
-  if (parts.length < 2) return 0;
-  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2] || 1));
-  return Math.max(0, Math.floor((new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
-};
-
-const extractAlternative = (text: string) => {
-  if (!text) return null;
-  const match = text.match(/(?:建議替代|替代藥品|替代品項|改用|可由)[：:\s]*([^。，\n;；之]+)/);
-  return match ? match[1].trim() : null;
-};
-
-const extractRecoveryTime = (text: string) => {
-  if (!text) return null;
-  const match = text.replace(/\\r\\n/g, '').match(/(無法預計[^\u3002，,]*|預計[^\u3002，]*(恢復|供應)[^\u3002，]*)/);
-  return match ? match[0] : null;
-};
-
-function groupByYearMonth(list: DrugRecord[]) {
-  const map: Record<string, Record<string, DrugRecord[]>> = {};
-  list.forEach(item => {
-    const parts = (item.公告更新時間 || '').split('/');
-    const year = parts[0] || '未知';
-    const month = parts[1]?.padStart(2, '0') || '00';
-    if (!map[year]) map[year] = {};
-    if (!map[year][month]) map[year][month] = [];
-    map[year][month].push(item);
-  });
-  return Object.entries(map)
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([year, months]) => ({
-      year,
-      months: Object.entries(months)
-        .sort(([a], [b]) => b.localeCompare(a))
-        .map(([month, items]) => ({ month, items }))
-    }));
-}
+import {
+  type DrugRecord,
+  type SupplyData,
+  type Theme,
+  extractRecoveryTime,
+  groupByYearMonth,
+  cleanSupplyData,
+  computeCompositeStats,
+  sortRecords,
+  filterRecords,
+  getDataAgeDays,
+  isDataStale,
+} from './lib/dataPipeline'
 
 // ----------------------------------------------------------------------
 // 統計 Hook
 // ----------------------------------------------------------------------
 const useCompositeStats = (allData: DrugRecord[]) => {
-  return useMemo(() => {
-    if (!allData.length) return { uniqueDrugCount: 0, monthlyChart: [], yearlyChart: [] };
-    
-    // 修正：若無字號，改用品名作為唯一值辨識，避免空字號藥品互相覆蓋
-    const uniqueDrugs = new Set(allData.map(item => (item.許可證字號 || item.中文品名 || '未知').trim()));
-    
-    const monthlyMap: Record<string, any> = {};
-    const yearlyMap: Record<string, any> = {};
-
-    allData.forEach(item => {
-      const parts = (item.公告更新時間 || '').split('/');
-      if (parts.length >= 2) {
-        const year = parts[0];
-        const month = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-        const theme = item._theme;
-
-        if (!monthlyMap[month]) monthlyMap[month] = { label: month, red: 0, amber: 0, emerald: 0 };
-        if (theme === 'red') monthlyMap[month].red++;
-        else if (theme === 'amber') monthlyMap[month].amber++;
-        else if (theme === 'emerald') monthlyMap[month].emerald++;
-
-        if (!yearlyMap[year]) yearlyMap[year] = { label: `${year}年`, red: 0, amber: 0, emerald: 0 };
-        if (theme === 'red') yearlyMap[year].red++;
-        else if (theme === 'amber') yearlyMap[year].amber++;
-        else if (theme === 'emerald') yearlyMap[year].emerald++;
-      }
-    });
-
-    const format = (map: Record<string, any>) => 
-      Object.values(map).sort((a: any, b: any) => a.label.localeCompare(b.label)).map(d => ({
-        name: d.label, '無替代(紅)': d.red, '有替代(黃)': d.amber, '已解除(綠)': d.emerald
-      }));
-
-    return { uniqueDrugCount: uniqueDrugs.size, monthlyChart: format(monthlyMap), yearlyChart: format(yearlyMap) };
-  }, [allData]);
+  return useMemo(() => computeCompositeStats(allData), [allData]);
 };
 
 // ----------------------------------------------------------------------
@@ -143,81 +58,16 @@ export default function App() {
   }, []);
 
   // 核心資料管線 Step 1：殭屍清除 + meta 掛載（不含篩選）
-  const cleanedData = useMemo(() => {
-    if (!data) return { all: [], availableYears: [], noAlt: 0, withAlt: 0, resolved: 0 };
-
-    const raw106 = (data.datasets['54506_resolved'] || []).map(i => ({ ...i, _theme: 'emerald' as Theme }));
-    const raw104 = (data.datasets['54504_with_alternative'] || []).map(i => ({ ...i, _theme: 'amber' as Theme }));
-    const raw105 = (data.datasets['54505_no_alternative'] || []).map(i => ({ ...i, _theme: 'red' as Theme }));
-
-    const resolvedDates = new Map<string, number>();
-    raw106.forEach(i => {
-      const license = (i.許可證字號 || '').trim();
-      if (license) {
-        const dTime = new Date(i.公告更新時間).getTime();
-        if (!resolvedDates.has(license) || dTime > resolvedDates.get(license)!) {
-          resolvedDates.set(license, dTime);
-        }
-      }
-    });
-
-    const clean104 = raw104.filter(i => {
-      const license = (i.許可證字號 || '').trim();
-      if (!license) return true;
-      const resTime = resolvedDates.get(license);
-      const myTime = new Date(i.公告更新時間).getTime();
-      return !(resTime && resTime >= myTime);
-    });
-
-    const clean105 = raw105.filter(i => {
-      const license = (i.許可證字號 || '').trim();
-      if (!license) return true;
-      const resTime = resolvedDates.get(license);
-      const myTime = new Date(i.公告更新時間).getTime();
-      return !(resTime && resTime >= myTime);
-    });
-
-    const all = [...clean105, ...clean104, ...raw106]
-      .filter(i => (i.中文品名 || '').trim() || (i.許可證字號 || '').trim())
-      .map(item => ({
-        ...item,
-        _days: getDaysDiff(item.公告更新時間),
-        _altText: extractAlternative(item.供應狀態)
-      }));
-
-    const availableYears = Array.from(new Set(all.map(i => (i.公告更新時間||'').split('/')[0]))).filter(Boolean).sort().reverse();
-
-    return {
-      all,
-      availableYears,
-      noAlt: all.filter(i => i._theme === 'red').length,
-      withAlt: all.filter(i => i._theme === 'amber').length,
-      resolved: all.filter(i => i._theme === 'emerald').length,
-    };
-  }, [data]);
+  const cleanedData = useMemo(() => cleanSupplyData(data), [data]);
 
   // 核心資料管線 Step 2：排序 + 篩選
   const processedData = useMemo(() => {
-    let all = [...cleanedData.all];
-
-    all.sort((a, b) => {
-      if (sortMode === 'newest') return new Date(b.公告更新時間).getTime() - new Date(a.公告更新時間).getTime();
-      if (sortMode === 'longest') return (b._days || 0) - (a._days || 0);
-      if (sortMode === 'name') return (a.中文品名 || '').localeCompare(b.中文品名 || '');
-      return 0;
-    });
+    let all = sortRecords(cleanedData.all, sortMode);
 
     if (showLatestTen) {
       all = all.slice(0, 10);
     } else {
-      all = all.filter(i => {
-        const parts = (i.公告更新時間 || '').split('/');
-        const matchSearch = (i.中文品名 || '').toLowerCase().includes(debouncedSearch.toLowerCase()) || (i.許可證字號 || '').includes(debouncedSearch);
-        const matchStatus = filterStatus === 'all' ? true : i._theme === filterStatus;
-        const matchYear = filterYear === 'all' ? true : parts[0] === filterYear;
-        const matchMonth = filterMonth === 'all' ? true : parts[1]?.padStart(2, '0') === filterMonth;
-        return matchSearch && matchStatus && matchYear && matchMonth;
-      });
+      all = filterRecords(all, { debouncedSearch, filterStatus, filterYear, filterMonth });
     }
 
     return {
@@ -231,6 +81,10 @@ export default function App() {
 
   const stats = useCompositeStats(processedData.all);
   const chartData = timeMode === 'month' ? stats.monthlyChart : stats.yearlyChart;
+
+  // 資料時效（CR-06）：逾預定更新週期時醒目提示
+  const dataStale = data ? isDataStale(data.last_updated) : false;
+  const dataAgeDays = data ? getDataAgeDays(data.last_updated) : null;
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', gap: '16px' }}>
@@ -259,6 +113,22 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f4f8', display: 'flex', flexDirection: 'column', fontFamily: '"Noto Sans TC", sans-serif' }}>
       <PwaBanners />
+      {/* 資料過期警示（CR-06）：逾每週更新週期時醒目提示，避免誤把陳舊資料當現況 */}
+      {dataStale && (
+        <div role="alert" style={{
+          background: '#fef2f2',
+          borderBottom: '2px solid #fca5a5',
+          color: '#991b1b',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+        }}>
+          <span>⚠️ 資料已超過預定更新週期（每週更新），目前為 {dataAgeDays} 天前。實際供應狀態請以 TFDA 官方公告為準。</span>
+        </div>
+      )}
       {/* 導覽列 */}
       <nav className="nav">
         <div className="nav__inner">
@@ -328,7 +198,7 @@ export default function App() {
               </select>
               <select value={sortMode} onChange={e => setSortMode(e.target.value as any)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', cursor: 'pointer' }}>
                 <option value="newest">排序：最新公告</option>
-                <option value="longest">排序：缺藥最久</option>
+                <option value="longest">排序：公告距今最久</option>
                 <option value="name">排序：名稱 A-Z</option>
               </select>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 700, color: '#2563eb', cursor: 'pointer', borderLeft: '1px solid #e2e8f0', paddingLeft: '16px' }}>
@@ -501,8 +371,11 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
         </div>
         <div className="drug-card__right">
           {theme !== 'emerald' && (
-            <span className={`recovery-tag recovery-tag--${d > 30 ? 'red' : d >= 14 ? 'amber' : 'default'}`}>
-              缺藥 {d} 天
+            <span
+              className={`recovery-tag recovery-tag--${d > 30 ? 'red' : d >= 14 ? 'amber' : 'default'}`}
+              title="距公告更新日的天數，非缺藥起始日"
+            >
+              公告距今 {d} 天
             </span>
           )}
           {item._altText && theme !== 'emerald' && (
