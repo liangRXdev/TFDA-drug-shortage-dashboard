@@ -1,5 +1,8 @@
 {
-  "last_updated": "2026-09-04 04:10:50",
+  "last_updated": "2026-09-08 12:03:36",
+  "upstream_max_date": "2026/08/31",
+  "frozen_runs": 0,
+  "last_observed_period": "2026-W37",
   "datasets": {
     "54504_with_alternative": [
       {
