@@ -16,6 +16,10 @@
   * 運用正規表達式 (Regex) 自動萃取公告內文的「替代藥品建議」與「預計恢復時間」。
 * **多維度數據分析 (Recharts)**：提供月度/年度的紅黃綠複合疊加長條圖 (Stacked Bar Chart)，視覺化呈現整體供應壓力與恢復彈性的趨勢變化。
 * **高效率多條件篩選器**：支援以「字串 (品名/字號)」、「狀態 (紅/黃/綠)」、「公告年份」進行交集過濾，並具備自訂排序邏輯（最新公告/缺藥最久/字母排序）。
+* **雙軌資料時效警示**：分別偵測兩種「畫面停在過去」的失效模式，兩者互為獨立訊號、可同時顯示。
+  * **排程停跑** — `last_updated` 逾 10 天未前進即警示（GitHub 會自動停用長期無活動 repo 的排程）。
+  * **上游停更** — 排程照跑但食藥署最大公告日期連續 4 個觀測區間未前進時提示。此為**疑似訊號而非停更證明**：同日修訂、舊公告修正、單一端點停更都不會觸發。
+
 ---
 
 ## 🏗️ 系統架構 (Architecture)
@@ -25,9 +29,25 @@
 | 階段 | 負責元件 | 執行邏輯與技術 |
 | :--- | :--- | :--- |
 | **資料來源** | 衛福部開放資料 API | 端點代碼：`104` (有替代), `105` (無替代), `106` (已解除) |
-| **ETL 處理** | GitHub Actions + Python | 每週五凌晨執行 `fetch_fda_data.py`，清洗資料並合併為 `supply_status_latest.json` |
+| **ETL 處理** | GitHub Actions + Python | 每週五凌晨執行 `fetch_fda_data.py`，清洗資料並合併為 `supply_status_latest.json`。採 fail-closed，並以 `concurrency` group 序列化（跨執行狀態只有一份） |
 | **前端渲染** | React + TypeScript + Vite | 讀取靜態 JSON，使用自訂 CSS (BEM 命名法) 渲染響應式 UI |
 | **網頁託管** | GitHub Pages | 由 GitHub 全球 CDN 分發，提供極速的載入體驗 |
+
+### 資料檔格式 (`public/data/supply_status_latest.json`)
+
+```jsonc
+{
+  "last_updated": "2026-09-08 12:04:33",  // ETL 最後成功「檢查」時間；每次成功執行都前進
+  "upstream_max_date": "2026/08/31",       // 上游最新公告日期；null 表無可比較基準
+  "frozen_runs": 0,                         // 連續幾個觀測區間未見上游日期前進
+  "last_observed_period": "2026-W37",      // 計數單位：台灣時間 ISO 週（同週重跑不累加）
+  "datasets": { }
+}
+```
+
+⚠️ **`last_updated` 只代表「檢查過」，不代表「資料有更新」。** 判斷上游是否仍在前進請看
+`upstream_max_date` / `frozen_runs`，兩者語意不可混用。後三欄為選填，
+舊版資料檔缺欄時前端會自動停用停更提示而非報錯。
 
 ---
 ## 📜 免責聲明 (Disclaimer)
@@ -62,6 +82,16 @@ uv run --with requests python scripts/fetch_fda_data.py
 
 ### 4. 測試
 ```bash
-npm run test                                        # 前端資料管線單元測試 (Vitest)
-uv run --with pytest --with requests pytest scripts # ETL fail-closed／schema 測試 (pytest)
+npm run test                                        # 前端資料管線單元測試 (Vitest, 103 案)
+uv run --with pytest --with requests pytest scripts # ETL fail-closed／schema／停更偵測 (pytest, 75 案)
 ```
+
+### 5. 規格與審查紀錄
+
+`.ai-review/` 保存每個增量的規格、Codex 獨立覆審原始輸出與逐項判定。
+改功能前先讀對應規格的「非目標」段，那是壓制範圍蔓延的錨點。
+
+| 增量 | 規格 | 覆審／判定 |
+| :--- | :--- | :--- |
+| 全 repo 程式碼覆審（CR-01～CR-14） | — | `codex-review.md` / `verdict.md` / `remediation-log.md` |
+| 上游停更偵測（F1～F15b） | `plan-upstream-freeze.md` | `plan-review-upstream-freeze.md` / `plan-verdict-upstream-freeze.md` |
