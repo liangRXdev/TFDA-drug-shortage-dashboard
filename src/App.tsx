@@ -19,6 +19,7 @@ import {
   isSupplyData,
   getDataAgeDays,
   isDataStale,
+  isUpstreamFrozen,
 } from './lib/dataPipeline'
 
 // ----------------------------------------------------------------------
@@ -91,6 +92,8 @@ export default function App() {
   // 資料時效（CR-06）：逾預定更新週期時醒目提示
   const dataStale = data ? isDataStale(data.last_updated) : false;
   const dataAgeDays = data ? getDataAgeDays(data.last_updated) : null;
+  // 模式 B（增量 F）：排程照跑但上游沒動。與 dataStale 互補，可同時成立。
+  const upstreamFrozen = data ? isUpstreamFrozen(data) : false;
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', gap: '16px' }}>
@@ -135,6 +138,27 @@ export default function App() {
           <span>⚠️ 資料已超過預定更新週期（每週更新），目前為 {dataAgeDays} 天前。實際供應狀態請以 TFDA 官方公告為準。</span>
         </div>
       )}
+      {/* 上游停更疑似訊號（增量 F）：排程照跑但上游公告日期未前進。
+          與上方模式 A 警示各自獨立顯示，兩者可同時成立、互不遮蔽。
+          文案刻意不寫「上游已停更」——同日修訂與局部停更不會觸發，這是疑似訊號。 */}
+      {upstreamFrozen && (
+        <div role="status" style={{
+          background: '#fffbeb',
+          borderBottom: '2px solid #fcd34d',
+          color: '#92400e',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+        }}>
+          <span>
+            ⚠️ 已連續 {data?.frozen_runs} 次觀測未見上游公告日期前進
+            （最新公告：{data?.upstream_max_date}），清單時效需留意。
+          </span>
+        </div>
+      )}
       {/* 導覽列 */}
       <nav className="nav">
         <div className="nav__inner">
@@ -144,7 +168,10 @@ export default function App() {
               <div className="nav__title">西藥供應資訊儀表板</div>
               <div className="nav__subtitle">NHI Drug Supply Monitor</div>
               {data?.last_updated && (
-                <div className="nav__meta">資料更新：{data.last_updated.slice(0, 16).replace('T', ' ')}</div>
+                <div className="nav__meta">最後檢查：{data.last_updated.slice(0, 16).replace('T', ' ')}</div>
+              )}
+              {data?.upstream_max_date && (
+                <div className="nav__meta">上游最新公告：{data.upstream_max_date}</div>
               )}
             </div>
           </div>

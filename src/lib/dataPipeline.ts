@@ -21,7 +21,14 @@ export interface DrugRecord {
 }
 
 export interface SupplyData {
+  /** ETL 最後成功「檢查」時間；每次成功執行都前進，與上游是否更新無關。 */
   last_updated: string;
+  /** 上游最新公告日期（YYYY/MM/DD）；null 表無可比較基準。舊 payload 缺欄。 */
+  upstream_max_date?: string | null;
+  /** 連續幾個觀測區間未見上游日期前進。舊 payload 缺欄。 */
+  frozen_runs?: number;
+  /** 計數單位：台灣時間 ISO 週（如 2026-W36）。舊 payload 缺欄。 */
+  last_observed_period?: string;
   datasets: { [key: string]: DrugRecord[] };
 }
 
@@ -91,6 +98,30 @@ export function getDataAgeDays(lastUpdated: string, now: number = Date.now()): n
 export function isDataStale(lastUpdated: string, now: number = Date.now()): boolean {
   const age = getDataAgeDays(lastUpdated, now);
   return age !== null && age > STALE_THRESHOLD_DAYS;
+}
+
+// ----------------------------------------------------------------------
+// 上游停更偵測（增量 F）
+//
+// 模式 A（isDataStale）看的是「排程有沒有在跑」；本函式看的是
+// 「上游有沒有在動」。兩者互補，可同時成立，各自顯示互不遮蔽。
+//
+// 這是**疑似訊號**而非停更證明：同日修訂、舊公告修正、局部端點停更
+// 都不會改變全域最大日期。文案必須反映這點。
+// ----------------------------------------------------------------------
+export const FROZEN_RUNS_THRESHOLD = 4;   // 週排程 → 約一個月未前進
+
+export function isUpstreamFrozen(
+  data: Pick<SupplyData, 'upstream_max_date' | 'frozen_runs'> | null | undefined,
+): boolean {
+  if (!data) return false;
+  const runs = data.frozen_runs;
+  // 排除 boolean（typeof true !== 'number' 已擋）、NaN、Infinity、小數、負數
+  if (typeof runs !== 'number' || !Number.isInteger(runs) || runs < 0) return false;
+  // 有計數卻無有效日期基準 → 狀態自相矛盾，不告警（漏報側）
+  if (typeof data.upstream_max_date !== 'string') return false;
+  if (parseTfdaDate(data.upstream_max_date) === null) return false;
+  return runs >= FROZEN_RUNS_THRESHOLD;
 }
 
 // ----------------------------------------------------------------------

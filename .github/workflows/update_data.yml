@@ -6,6 +6,13 @@ on:
     - cron: '0 18 * * 4'
   workflow_dispatch: # 允許手動觸發測試
 
+# 停更偵測的 frozen_runs 是唯一的跨執行狀態，且以 repo 已接受的 payload 為基準。
+# 兩個 ETL 並行會讀到同一份前版、各自算出新狀態，較晚完成者可能覆蓋較新結果。
+# 在無伺服器狀態的靜態管線上不自建狀態承接協議，改在排程層序列化（比照 deploy.yml）。
+concurrency:
+  group: fda-data-update
+  cancel-in-progress: false   # 排隊而非取消：每個觀測區間都要留下結果
+
 jobs:
   update-data:
     runs-on: ubuntu-latest

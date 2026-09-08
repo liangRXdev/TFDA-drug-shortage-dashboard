@@ -16,6 +16,8 @@ import {
   selectVisibleRecords,
   alternativeConfidence,
   isSupplyData,
+  isUpstreamFrozen,
+  FROZEN_RUNS_THRESHOLD,
   type DrugRecord,
   type SupplyData,
   type Theme,
@@ -548,5 +550,144 @@ describe('isSupplyData (CR-10)', () => {
     expect(isSupplyData({ last_updated: 1, datasets: {} })).toBe(false); // 型別錯
     expect(isSupplyData({ last_updated: 'x' })).toBe(false);        // 缺 datasets
     expect(isSupplyData({ last_updated: 'x', datasets: { a: 'not-array' } })).toBe(false);
+  });
+});
+
+// ======================================================================
+// 增量 F：上游停更偵測（規格 .ai-review/plan-upstream-freeze.md）
+//
+// 每個 describe 對應驗收條件，並堵死 plan-verdict 區塊 3 指名的弱化實作
+// （「isSupplyData 永遠回 true」「UI 永遠不顯示提示」…）。
+// ======================================================================
+describe('F10: isSupplyData 對新舊 payload 的相容性', () => {
+  const oldPayload = { last_updated: '2026-09-04 04:10:50', datasets: { a: [] } };
+  const newPayload = {
+    last_updated: '2026-09-04 04:10:50',
+    upstream_max_date: '2026/08/31',
+    frozen_runs: 2,
+    last_observed_period: '2026-W36',
+    datasets: { a: [] },
+  };
+
+  it('缺偵測欄的舊 payload 仍視為有效', () => {
+    expect(isSupplyData(oldPayload)).toBe(true);
+  });
+
+  it('含偵測欄的新 payload 視為有效', () => {
+    expect(isSupplyData(newPayload)).toBe(true);
+  });
+
+  it('upstream_max_date 為 null 仍有效', () => {
+    expect(isSupplyData({ ...newPayload, upstream_max_date: null })).toBe(true);
+  });
+
+  // 堵死「永遠回 true」：核心欄位壞掉仍須拒絕
+  it('核心欄位結構錯誤仍須拒絕（即使偵測欄齊全）', () => {
+    expect(isSupplyData({ ...newPayload, last_updated: 1 })).toBe(false);
+    expect(isSupplyData({ ...newPayload, datasets: 'x' })).toBe(false);
+    expect(isSupplyData({ ...newPayload, datasets: { a: 'not-array' } })).toBe(false);
+  });
+
+  it('偵測欄無效時不否決整份清單（停用偵測即可）', () => {
+    const weird = { ...newPayload, frozen_runs: 'three', upstream_max_date: 42 };
+    expect(isSupplyData(weird)).toBe(true);
+    expect(isUpstreamFrozen(weird as never)).toBe(false);
+  });
+});
+
+describe('F11: isUpstreamFrozen 門檻與反例', () => {
+  const base = { upstream_max_date: '2026/08/31', frozen_runs: 4 };
+
+  it('門檻邊界 3/4/5', () => {
+    expect(isUpstreamFrozen({ ...base, frozen_runs: 3 })).toBe(false);
+    expect(isUpstreamFrozen({ ...base, frozen_runs: 4 })).toBe(true);
+    expect(isUpstreamFrozen({ ...base, frozen_runs: 5 })).toBe(true);
+  });
+
+  it('FROZEN_RUNS_THRESHOLD 為 4', () => {
+    expect(FROZEN_RUNS_THRESHOLD).toBe(4);
+  });
+
+  // 堵死「只判 typeof number 與門檻」
+  it.each([
+    ['缺欄', {}],
+    ['字串', { ...base, frozen_runs: '9' }],
+    ['布林 true', { ...base, frozen_runs: true }],
+    ['null', { ...base, frozen_runs: null }],
+    ['負數', { ...base, frozen_runs: -4 }],
+    ['小數', { ...base, frozen_runs: 4.5 }],
+    ['NaN', { ...base, frozen_runs: NaN }],
+    ['Infinity', { ...base, frozen_runs: Infinity }],
+    ['日期缺欄', { frozen_runs: 9 }],
+    ['日期為 null', { ...base, upstream_max_date: null }],
+    ['日期非字串', { ...base, upstream_max_date: 20260831 }],
+    ['日期非真實曆日', { ...base, upstream_max_date: '2026/02/30' }],
+    ['整份為 null', null],
+    ['整份為 undefined', undefined],
+  ])('%s → false', (_label, input) => {
+    expect(isUpstreamFrozen(input as never)).toBe(false);
+  });
+
+  // 日期距今多久不得單獨決定結果
+  it('日期很舊但計數未達門檻 → 仍為 false', () => {
+    expect(isUpstreamFrozen({ upstream_max_date: '2019/01/01', frozen_runs: 1 })).toBe(false);
+  });
+
+  it('日期很新但計數達門檻 → 仍為 true（計數才是判準）', () => {
+    expect(isUpstreamFrozen({ upstream_max_date: '2026/09/08', frozen_runs: 4 })).toBe(true);
+  });
+});
+
+describe('F12: 模式 A 未退化，且兩模式互不遮蔽', () => {
+  const now = new Date('2026-09-08T12:00:00').getTime();
+
+  it('isDataStale 門檻與邊界行為不變', () => {
+    expect(STALE_THRESHOLD_DAYS).toBe(10);
+    expect(isDataStale('2026-09-08 00:00:00', now)).toBe(false);
+    // 邊界：age 恰為 10 天 → 不算過期；11 天 → 過期（門檻為 age > 10）
+    expect(isDataStale('2026-08-29 12:00:00', now)).toBe(false);
+    expect(isDataStale('2026-08-28 12:00:00', now)).toBe(true);
+    expect(isDataStale('2026-08-20 00:00:00', now)).toBe(true);
+  });
+
+  it('新增偵測欄不影響 isDataStale 結果', () => {
+    const fresh = '2026-09-08 00:00:00';
+    expect(isDataStale(fresh, now)).toBe(false);
+    // 同一時間戳，無論 payload 帶不帶偵測欄，模式 A 判定都一樣
+    expect(isDataStale(fresh, now)).toBe(isDataStale(fresh, now));
+  });
+
+  // A／B 四種組合：兩者互為獨立訊號
+  it.each([
+    ['A 假 B 假', '2026-09-08 00:00:00', 1, false, false],
+    ['A 真 B 假', '2026-08-20 00:00:00', 1, true, false],
+    ['A 假 B 真', '2026-09-08 00:00:00', 4, false, true],
+    ['A 真 B 真', '2026-08-20 00:00:00', 4, true, true],
+  ])('%s', (_l, lastUpdated, runs, expectA, expectB) => {
+    const data = {
+      last_updated: lastUpdated as string,
+      upstream_max_date: '2026/08/31',
+      frozen_runs: runs as number,
+      datasets: {},
+    };
+    expect(isDataStale(data.last_updated, now)).toBe(expectA);
+    expect(isUpstreamFrozen(data)).toBe(expectB);
+  });
+});
+
+describe('F13: 舊 payload 不誤報，新 payload 達門檻必須報', () => {
+  it('舊 payload（缺偵測欄）→ 不顯示提示', () => {
+    const old = { last_updated: '2026-09-04 04:10:50', datasets: {} };
+    expect(isSupplyData(old)).toBe(true);
+    expect(isUpstreamFrozen(old as never)).toBe(false);
+  });
+
+  // 堵死「UI 永遠不顯示提示」：達門檻時必須為 true
+  it('新 payload 達門檻 → 必須顯示提示', () => {
+    expect(isUpstreamFrozen({ upstream_max_date: '2026/08/31', frozen_runs: 4 })).toBe(true);
+  });
+
+  it('不可判定狀態（日期 null）不誤報', () => {
+    expect(isUpstreamFrozen({ upstream_max_date: null, frozen_runs: 9 })).toBe(false);
   });
 });
