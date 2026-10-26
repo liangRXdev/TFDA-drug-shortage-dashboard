@@ -557,19 +557,25 @@ def main_name_key(row, category):
     return norm(name.split("\n")[0])
 
 
-def main_unit(row, category):
-    key = (main_name_key(row, category), row.get("公告更新時間") or "")
+def compare_unit(name_key, date_value, license_no, text, category):
+    """D6 比較單位的唯一組裝處（R8）：品名鍵＋日期；s3/s4 再加證號＋指紋，s2 不比內容（N9）。
+
+    主檔列、補抓 record、s2 列表列都經這裡，避免任一端增減欄位或漏做正規化而漂移。
+    """
+    key = (name_key, date_value or "")
     if CATEGORIES[category]["compare_content"]:
-        key += (norm(row.get("許可證字號")), norm(row.get("供應狀態")))
+        key += (norm(license_no), norm(text))
     return key
+
+
+def main_unit(row, category):
+    return compare_unit(main_name_key(row, category), row.get("公告更新時間"),
+                        row.get("許可證字號"), row.get("供應狀態"), category)
 
 
 def record_unit(record, category):
-    """補抓 record 的比較單位；s2 只用列表欄位（N9）。"""
-    key = (norm(record["中文品名"].split("\n")[0]), record["公告更新時間"])
-    if CATEGORIES[category]["compare_content"]:
-        key += (norm(record["許可證字號"]), norm(record["供應狀態"]))
-    return key
+    return compare_unit(norm(record["中文品名"].split("\n")[0]), record["公告更新時間"],
+                        record["許可證字號"], record["供應狀態"], category)
 
 
 def diff_units(main_items, site_items, category):
@@ -626,7 +632,8 @@ def process_category(client, category, pages, main, today):
         added, removed = diff_units(main_items, [(record_unit(r, category), r) for r in records],
                                     category)
     else:
-        site_items = [((norm(row.name_zh), row.date), (row, hidden)) for row, hidden in located]
+        site_items = [(compare_unit(norm(row.name_zh), row.date, None, None, category), (row, hidden))
+                      for row, hidden in located]
         added_rows, removed = diff_units(main_items, site_items, category)
         added = [r for r in (fetch(row, hidden) for row, hidden in added_rows) if r is not None]
     supersedes = [supersede_entry(r, category) for r in removed]

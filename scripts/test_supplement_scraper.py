@@ -598,10 +598,8 @@ def compute_case(case):
     """以純函式重現 process_category 的差異計算（不經網路）。"""
     category = case["category"]
     main_items = [(sup.main_unit(r, category), r) for r in case["main"]]
-    if sup.CATEGORIES[category]["compare_content"]:
-        site_items = [(sup.record_unit(r, category), r) for r in case["site"]]
-    else:
-        site_items = [((sup.norm(r["中文品名"].split("\n")[0]), r["公告更新時間"]), r) for r in case["site"]]
+    # s2 在 record_unit 中不比內容（N9），等同只用列表的品名＋日期
+    site_items = [(sup.record_unit(r, category), r) for r in case["site"]]
     added, removed = sup.diff_units(main_items, site_items, category)
     return added, [sup.supersede_entry(r, category) for r in removed]
 
