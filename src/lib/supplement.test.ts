@@ -400,6 +400,12 @@ describe('B8：隱藏的安全條件（D10）', () => {
     ['base 為 null', null],
     ['base.last_updated 為 null', { last_updated: null, upstream_max_date: null }],
     ['base.last_updated 無法解析', { last_updated: 'bad', upstream_max_date: null }],
+    // 第二輪 N1：既有 parseLastUpdated 會接受以下三種，必須在補抓端被拒
+    ['合法前綴＋尾碼', { last_updated: '2026-10-23 04:53:03garbage', upstream_max_date: null }],
+    ['T 分隔（非 Python 產出格式）', { last_updated: '2026-10-23T04:53:03', upstream_max_date: null }],
+    ['時分秒超界', { last_updated: '2026-10-23 25:61:61', upstream_max_date: null }],
+    ['缺秒', { last_updated: '2026-10-23 04:53', upstream_max_date: null }],
+    ['不存在的日期', { last_updated: '2026-02-30 04:53:03', upstream_max_date: null }],
   ])('R1：成功類別的基準版本不明（%s）→ 紅、不隱藏、不加 s2', (_n, base) => {
     const r = applySupplement(main, mkSup({ ...diff, s4: { base } }), NOW);
     expect(r.trusted).toBe(false);

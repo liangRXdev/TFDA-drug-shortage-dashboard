@@ -615,6 +615,12 @@ def check_cap(supersedes, main_rows, category):
 def process_category(client, category, pages, main, today):
     """單類：取詳情 → 差異 → 熔斷。回傳成功結果 dict；失敗 raise ScrapeError。"""
     main_rows = main["datasets"][CATEGORIES[category]["dataset"]]
+    # 第二輪 N2c：主檔日期無效的列若被 supersede，會到寫檔前的契約檢查才整批失敗，
+    # 連其他類的結果與 error 快照都發布不了。ETL 對無效日期只告警（has_invalid），
+    # 主檔確實可能出現；在這裡就判該類 error，維持單類故障隔離。
+    bad_dates = [r.get("公告更新時間") for r in main_rows if parse_date(r.get("公告更新時間")) is None]
+    if bad_dates:
+        raise ScrapeError(f"{category}：主檔有 {len(bad_dates)} 列公告日期無效（{bad_dates[:3]}），無法可靠比對")
     main_items = [(main_unit(r, category), r) for r in main_rows]
     located = [(row, hidden) for page, hidden in pages for row in page.rows]
 
@@ -692,15 +698,25 @@ def _is_main_timestamp(value):
         return False
 
 
-def _addition_problems(r, category):
-    """已存檔的 addition 是否符合 §6.2（與 validate_detail 的產出同一契約）。"""
+def _date_not_future(value, today):
+    """真實曆日且不晚於 today＋FUTURE_TOLERANCE_DAYS；與前端 isValidAnnouncementDate 同一規則。"""
+    parsed = parse_date(value)
+    limit = (today + timedelta(days=FUTURE_TOLERANCE_DAYS)).strftime("%Y/%m/%d")
+    return parsed is not None and parsed <= limit
+
+
+def _addition_problems(r, category, today):
+    """已存檔的 addition 是否符合 §6.2（與 validate_detail 的產出、前端 isAddition 同一契約）。
+
+    第二輪 N2a：前端會拒收未來日期，這裡若不驗，損壞前檔會被沿用而讓前端整份拒收。
+    """
     if not isinstance(r, dict):
         return ["addition 不是物件"]
     case = r.get("_案件編號")
     checks = [
         (isinstance(case, str) and CASE_PATTERN.match(case), "案件編號無效"),
         (r.get("編號") == f"dsms-{case}", "編號與案件編號不對應"),
-        (parse_date(r.get("公告更新時間")) is not None, "日期無效"),
+        (_date_not_future(r.get("公告更新時間"), today), "日期無效或晚於明天"),
         (isinstance(r.get("中文品名"), str) and r["中文品名"].strip(), "中文品名為空"),
         (isinstance(r.get("許可證字號"), str) and LICENSE_PATTERN.match(r["許可證字號"]), "證號無效"),
         (isinstance(r.get("供應狀態"), str) and r["供應狀態"].strip(), "供應狀態為空"),
@@ -723,8 +739,8 @@ def _supersede_problems(e, category):
     return [f"{category} supersede：{msg}" for ok, msg in checks if not ok]
 
 
-def category_problems(cat, category):
-    """單類輸出契約（§6.1）；回傳問題清單，空清單代表合法。"""
+def category_problems(cat, category, today):
+    """單類輸出契約（§6.1）；回傳問題清單，空清單代表合法。必須與前端 isCategory 一樣嚴或更嚴。"""
     if not isinstance(cat, dict):
         return [f"{category}：不是物件"]
     problems = []
@@ -742,17 +758,19 @@ def category_problems(cat, category):
         return problems
     base = cat.get("base")
     if not (_is_iso(cat["last_success_at"]) and isinstance(cat.get("success_run_id"), str)
-            and isinstance(base, dict) and _is_main_timestamp(base.get("last_updated"))):
+            and isinstance(base, dict) and _is_main_timestamp(base.get("last_updated"))
+            and (base.get("upstream_max_date") is None or isinstance(base.get("upstream_max_date"), str))):
         problems.append(f"{category}：成功紀錄的時間、run_id 或基準無效")
     for r in lists[0]:
-        problems += _addition_problems(r, category)
+        problems += _addition_problems(r, category, today)
     for e in lists[1]:
         problems += _supersede_problems(e, category)
     return problems
 
 
-def output_problems(payload):
-    """整份補抓檔的契約；讀前檔與寫檔前都用這一套（R3）。"""
+def output_problems(payload, today=None):
+    """整份補抓檔的契約；讀前檔與寫檔前都用這一套（R3）。today 為執行日（台灣時區）。"""
+    today = today or datetime.now(TAIPEI_TZ).date()
     if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
         return ["schema 不符"]
     if not isinstance(payload.get("run_id"), str) or not isinstance(payload.get("generated_at"), str):
@@ -760,10 +778,10 @@ def output_problems(payload):
     categories = payload.get("categories")
     if not isinstance(categories, dict) or set(categories) != set(SCAN_ORDER):
         return ["categories 不是 s2／s3／s4"]
-    return [p for c in SCAN_ORDER for p in category_problems(categories[c], c)]
+    return [p for c in SCAN_ORDER for p in category_problems(categories[c], c, today)]
 
 
-def load_previous(path):
+def load_previous(path, today=None):
     """前檔：不存在、無法解析、或任何一處違反輸出契約 → None（視同首次，不沿用任何舊結果）。
 
     整份丟棄而非逐類挑選：損壞代表產出端或檔案本身出了問題，部分沿用無法保證正確（§6.3）。
@@ -776,7 +794,7 @@ def load_previous(path):
     except (OSError, json.JSONDecodeError) as exc:
         print(f"⚠️ 前檔 {path} 無法讀取，視同首次執行：{exc}")
         return None
-    problems = output_problems(previous)
+    problems = output_problems(previous, today)
     if problems:
         print(f"⚠️ 前檔 {path} 違反輸出契約，視同首次執行：{problems[:3]}")
         return None
@@ -833,7 +851,7 @@ def run(main_path=MAIN_PATH, output_path=OUTPUT_PATH, client=None, now=None):
     now = now or datetime.now(TAIPEI_TZ)
     run_id = f"{now:%Y%m%dT%H%M%S}-{secrets.token_hex(4)}"
     main = load_main(main_path)
-    previous = load_previous(output_path)
+    previous = load_previous(output_path, now.date())
     client = client or DsmsClient()
 
     observed = observe_twice(client)
@@ -849,7 +867,7 @@ def run(main_path=MAIN_PATH, output_path=OUTPUT_PATH, client=None, now=None):
             outcomes[category] = exc
 
     payload = build_output(outcomes, previous, main, now, run_id)
-    problems = output_problems(payload)
+    problems = output_problems(payload, now.date())
     if problems:
         # 產出端 bug：寧可不寫檔（前端會因過期亮紅），也不發布違反契約的檔案
         raise RuntimeError(f"輸出違反契約，未寫檔：{problems[:5]}")

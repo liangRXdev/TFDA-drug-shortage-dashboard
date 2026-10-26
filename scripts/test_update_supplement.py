@@ -200,6 +200,20 @@ def test_real_git_error_snapshot_reaches_remote_verbatim(repos, monkeypatch):
     assert remote_file(repos["remote"], wrap.SUPPLEMENT_REL) == SNAPSHOT_ERROR
 
 
+SNAPSHOT_ALL_OK = json.dumps({"schema": 1, "run_id": "R-OK", "categories": {
+    k: {"state": "ok", "base": {"last_updated": "2026-10-23 04:53:03"}} for k in ("s2", "s3", "s4")}},
+    ensure_ascii=False)
+
+
+def test_real_git_all_ok_snapshot_reaches_remote_verbatim(repos, monkeypatch):
+    """A11(b)（第二輪 T-R4）：三類全 ok 的快照與 error 快照各自獨立驗證，exit 0。"""
+    monkeypatch.setenv("STUB_PAYLOAD", SNAPSHOT_ALL_OK)
+    monkeypatch.setenv("STUB_CODE", "0")
+    code = wrap.main(run=real_runner(repos["work"]), logger=lambda _m: None, python=sys.executable)
+    assert code == 0
+    assert remote_file(repos["remote"], wrap.SUPPLEMENT_REL) == SNAPSHOT_ALL_OK
+
+
 def test_real_git_rival_push_then_retry_keeps_base_and_both_commits(repos, monkeypatch):
     """抓取期間 CI 先 push → 第一次 push 被拒 → rebase 後重試：補抓檔逐位元等於產出（base 未被改寫），
     CI 的主檔變更也保留。"""

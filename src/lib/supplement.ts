@@ -204,8 +204,21 @@ export function supplementAgeDays(lastSuccessAt: string | null, now: number): nu
 }
 
 /** 基準版本檢查：'unknown' = 無法確認（fail-closed，R1）；'older' = 主檔比基準舊；'ok'。 */
+// 補抓檔 base 的時間格式由 Python `%Y-%m-%d %H:%M:%S` 產生，必須整串符合。
+// 既有 parseLastUpdated 服務主檔（CR-06），容忍 T 分隔且沒有結尾錨點——
+// 「合法前綴＋任意尾碼」會被它當成有效，不能拿來判斷補抓可信度（第二輪 N1）。
+const STRICT_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
+
+export function parseStrictTimestamp(value: string | null | undefined): number | null {
+  const m = (value ?? '').match(STRICT_TIMESTAMP);
+  if (!m) return null;
+  const [h, min, s] = [Number(m[4]), Number(m[5]), Number(m[6])];
+  if (h > 23 || min > 59 || s > 59) return null;
+  return parseLastUpdated(value as string);   // 真實曆日檢查沿用既有邏輯
+}
+
 function baseStatus(main: SupplyData, cat: SupplementCategory): 'ok' | 'older' | 'unknown' {
-  const baseTime = parseLastUpdated(cat.base?.last_updated ?? '');
+  const baseTime = parseStrictTimestamp(cat.base?.last_updated);
   const mainTime = parseLastUpdated(main.last_updated);
   if (baseTime === null || mainTime === null) return 'unknown';
   return mainTime < baseTime ? 'older' : 'ok';

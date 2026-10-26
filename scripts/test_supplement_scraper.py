@@ -771,6 +771,10 @@ def _valid_previous(tmp_path):
 @pytest.mark.parametrize("corrupt", [
     lambda d: d["categories"]["s2"]["additions"].append(None),
     lambda d: d["categories"]["s2"]["additions"][0].update(公告更新時間="2099/13/01"),
+    # 第二輪 N2a：合法曆日但在未來——上一版只測了不存在的月份，擋下它的不是未來日期檢查
+    lambda d: d["categories"]["s2"]["additions"][0].update(公告更新時間="2099/01/01"),
+    lambda d: d["categories"]["s2"]["additions"][0].update(公告更新時間="2026/10/28"),   # NOW＋2 天
+    lambda d: d["categories"]["s2"]["base"].update(upstream_max_date=123),               # N2b
     lambda d: d["categories"]["s2"]["additions"][0].update(編號="wrong-id"),
     lambda d: d["categories"]["s2"]["additions"][0].update(_案件編號="not-a-number"),
     lambda d: d["categories"]["s2"]["additions"][0].update(許可證字號="藥字第1號"),
@@ -779,7 +783,8 @@ def _valid_previous(tmp_path):
     lambda d: d["categories"]["s3"]["supersedes"].append({"品名鍵": "x", "公告更新時間": "2026/01/01",
                                                          "許可證字號": "y", "指紋": None}),
     lambda d: d["categories"].pop("s4"),
-], ids=["null 筆", "日期無效", "編號不對應", "案件編號非數字", "證號格式錯", "缺 base",
+], ids=["null 筆", "日期無效", "未來日期 2099", "後天", "upstream_max_date 型別錯",
+        "編號不對應", "案件編號非數字", "證號格式錯", "缺 base",
         "dataset 錯置", "s3 指紋為 null", "缺類別"])
 def test_r3_parseable_but_invalid_previous_is_discarded(tmp_path, corrupt):
     main_path, good = _valid_previous(tmp_path)
@@ -1057,3 +1062,138 @@ def test_a10_cross_end_fixture_is_current(tmp_path):
     with open(CROSS_FIXTURE, encoding="utf-8") as f:
         committed = json.load(f)
     assert committed == snapshot, "Python 產出變了：重新產生 fixture 並確認前端測試"
+
+
+# ----------------------------------------------------------------------
+# 第二輪覆審補強（verdict-supplement-r2.md N2c／T-R1／T-R4）
+# ----------------------------------------------------------------------
+CARRIED_KEYS = ("last_success_at", "success_run_id", "base", "scanned", "additions", "supersedes",
+                "excluded_no_license")
+LATER = datetime(2026, 10, 27, 9, 10, tzinfo=sup.TAIPEI_TZ)
+
+
+def rich_previous(tmp_path):
+    """成功前檔：三類都 ok，s3 與 s2 都有非空 additions，s3 有非空 supersedes。"""
+    old = opendata_row("1", "2026/05/07", "修訂藥", "EN", "衛署藥輸字第000101號", "舊說明")
+    main_path = main_file(tmp_path, {"54504_with_alternative": [old]})
+    s3 = drugs_n(20) + [drug("1150101", "2026/09/01", "修訂藥", "EN", "衛署藥輸字第000101號", "新說明")]
+    s3.sort(key=lambda d: d["date"], reverse=True)
+    site = FakeSite({"s3": s3, "s4": [],
+                     "s2": [drug("1150700", "2026/10/20", "新恢復藥", license_no="衛部藥輸字第000061號")]})
+    _, prev = run_once(tmp_path, site, main_path)
+    c = prev["categories"]
+    assert c["s3"]["additions"] and c["s3"]["supersedes"] and c["s2"]["additions"]
+    return main_path, site, prev
+
+
+def assert_carried(out, prev, category):
+    got, want = out["categories"][category], prev["categories"][category]
+    assert got["state"] == "error"
+    for key in CARRIED_KEYS:
+        assert got[key] == want[key], (category, key)
+
+
+@pytest.mark.parametrize("make_override", [
+    lambda: list_html("s3", [{"date": "2026/09/20", "zh": "x", "case": "2000013"}],
+                      current=2, total=3),                                                  # 中間頁短少
+    lambda: list_html("s3", [{"date": "2026/09/20", "zh": f"背景藥{i}", "case": str(2000000 + i)}
+                             for i in range(8)], current=2, total=2),                       # 重複案件
+    lambda: list_html("s3", [{"date": "2026/09/20", "zh": "x", "case": "2000013"}]),         # 沒有分頁列
+], ids=["中間頁短少", "重複案件", "提早截斷"])
+def test_t_r1_a2_failures_carry_every_field(tmp_path, make_override):
+    main_path, site, prev = rich_previous(tmp_path)
+    site.overrides[("s3", 2)] = make_override()
+    code, out = run_once(tmp_path, site, main_path, now=LATER)
+    assert code == 2
+    assert_carried(out, prev, "s3")
+    assert out["categories"]["s2"]["state"] == "ok"   # 其他類照常
+
+
+def test_t_r1_a3_broken_row_carries_nonempty_supersedes(tmp_path):
+    main_path, site, prev = rich_previous(tmp_path)
+    site.overrides[("s3", 1)] = list_html("s3", [], current=1, total=2).replace(
+        '<tr class="grvHeader"><th>更新日期</th></tr>',
+        '<tr class="grvHeader"><th>更新日期</th></tr><tr class="grvRow"><td>壞</td></tr>')
+    code, out = run_once(tmp_path, site, main_path, now=LATER)
+    assert code == 2
+    assert_carried(out, prev, "s3")
+
+
+@pytest.mark.parametrize("field", ["case", "date", "zh", "order", "move"])
+def test_t_r1_a12_inconsistency_carries_all_categories(tmp_path, field):
+    """A12(a)(b)(d)：從有結果的前檔開始，兩輪任一欄位不同（含跨類移動）→ 三類都 error 且完整沿用前檔。"""
+    main_path, site, prev = rich_previous(tmp_path)
+    base = site.categories["s3"]
+    changed = [dict(d) for d in base]
+    if field == "case":
+        changed[3]["case"] = "9999999"
+    elif field == "date":
+        changed[-1]["date"] = "2026/01/01"
+    elif field == "zh":
+        changed[3]["zh"] = "改名藥"
+    elif field == "order":
+        changed[3], changed[4] = changed[4], changed[3]
+    moved = changed[0] if field == "move" else None
+    if moved:
+        changed = changed[1:]
+    site.categories = {
+        "s3": lambda n: changed if n % 2 == 0 else base,
+        "s4": lambda n: [moved] if (moved and n % 2 == 0) else [],
+        "s2": site.categories["s2"],
+    }
+    site.list_calls = 0
+    code, out = run_once(tmp_path, site, main_path, now=LATER)
+    assert code == 2
+    for category in ("s2", "s3", "s4"):
+        assert "不一致" in out["categories"][category]["error"]
+        assert_carried(out, prev, category)
+
+
+def test_n2c_bad_main_date_fails_only_that_category(tmp_path):
+    """第二輪 N2c：主檔 104 有無效日期 → 只有 s3 error；s2 照常發布，檔案有寫出。"""
+    bad = opendata_row("1", "2026/13/01", "壞日期藥", "EN")
+    main_path = main_file(tmp_path, {"54504_with_alternative": [bad]})
+    site = FakeSite({"s3": [], "s4": [],
+                     "s2": [drug("1150700", "2026/10/20", "新恢復藥", license_no="衛部藥輸字第000061號")]})
+    code, out = run_once(tmp_path, site, main_path)
+    assert code == 2
+    assert out["categories"]["s3"]["state"] == "error" and "日期無效" in out["categories"]["s3"]["error"]
+    assert out["categories"]["s2"]["state"] == "ok" and len(out["categories"]["s2"]["additions"]) == 1
+    assert sup.output_problems(out, NOW.date()) == []
+
+
+def test_n2a_output_with_future_addition_is_never_written(tmp_path, monkeypatch):
+    """產出端若產生未來日期的 addition（bug），寫檔前的契約檢查必須擋下。"""
+    main_path = main_file(tmp_path)
+    real_build = sup.build_output
+
+    def build_with_future(*a, **k):
+        payload = real_build(*a, **k)
+        payload["categories"]["s2"]["additions"] = [{
+            "編號": "dsms-1", "_案件編號": "1", "公告更新時間": "2099/01/01", "中文品名": "x\nX",
+            "許可證字號": "衛署藥製字第000001號", "供應狀態": "已恢復", "_來源": "dsms"}]
+        return payload
+    monkeypatch.setattr(sup, "build_output", build_with_future)
+    with pytest.raises(RuntimeError, match="契約"):
+        sup.run(main_path=main_path, output_path=str(tmp_path / "o.json"),
+                client=FakeClient(FakeSite({"s3": [], "s4": [], "s2": []})), now=NOW)
+    assert not (tmp_path / "o.json").exists()
+
+
+def test_t_r4_a9_success_snapshot_has_complete_schema(tmp_path):
+    main_path, _site, prev = rich_previous(tmp_path)
+    assert set(prev) == {"schema", "generated_at", "run_id", "categories"}
+    for category, c in prev["categories"].items():
+        assert set(c) == {"dataset", "state", "error", *CARRIED_KEYS}, category
+        assert c["scanned"]["pages"] >= 1 and c["scanned"]["rows"] >= 0
+        assert isinstance(c["excluded_no_license"], list)
+    assert sup.output_problems(prev, NOW.date()) == []
+
+
+def test_t_r4_a7_fullwidth_english_quotes():
+    zh, en = "＂井田＂可嗽平錠", "COSOPIN TABLETS ＂CHINTENG＂"
+    row = sup.ListRow("2026/10/01", zh, en, "x", "1000001", "t$lbtnProductNameC")
+    detail = sup.parse_detail(detail_html("1000001", zh, en, "衛署藥製字第000001號", [("2026/10/01", "說明")]))
+    rec = sup.validate_detail(detail, row, "s3", TODAY)
+    assert rec["中文品名"] == f"{zh}\n{en}"                     # 顯示文字保留全形
+    assert sup.record_unit(rec, "s3")[0] == "\"井田\"可嗽平錠"   # 比較鍵經 NFKC 轉成半形
