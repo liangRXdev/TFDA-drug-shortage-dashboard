@@ -21,6 +21,14 @@ import {
   isDataStale,
   isUpstreamFrozen,
 } from './lib/dataPipeline'
+import {
+  type SupplementLoad,
+  SUPPLEMENT_URL_PATH,
+  applySupplement,
+  loadSupplement,
+  recordKeys,
+  supplementListUrl,
+} from './lib/supplement'
 
 // ----------------------------------------------------------------------
 // 統計 Hook
@@ -34,6 +42,7 @@ const useCompositeStats = (allData: DrugRecord[]) => {
 // ----------------------------------------------------------------------
 export default function App() {
   const [data, setData] = useState<SupplyData | null>(null);
+  const [supplement, setSupplement] = useState<SupplementLoad | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -54,22 +63,32 @@ export default function App() {
   }, [searchTerm]);
 
   useEffect(() => {
+    // 增量 S：補抓檔與主檔並行載入。loadSupplement 永不 reject、最多等 8 秒，
+    // 補抓失敗不得阻斷主資料（只會變成紅色警示）。
+    const supplementLoad = loadSupplement(`${import.meta.env.BASE_URL}${SUPPLEMENT_URL_PATH}`);
     // CR-10：檢查 res.ok，並以 isSupplyData 做執行期結構驗證（ETL fail-closed 之外的第二道防線）
     fetch(`${import.meta.env.BASE_URL}data/supply_status_latest.json`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then(json => {
+      .then(async json => {
         if (!isSupplyData(json)) throw new Error('供應資料結構不符預期');
+        setSupplement(await supplementLoad);
         setData(json);
         setLoading(false);
       })
       .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
+  // 增量 S：套用補抓（D10 條件不成立時只新增缺藥、不隱藏任何列）
+  const merged = useMemo(
+    () => (data && supplement ? applySupplement(data, supplement) : null),
+    [data, supplement],
+  );
+
   // 核心資料管線 Step 1：殭屍清除 + 去重 + meta 掛載（不含篩選）
-  const cleanedData = useMemo(() => cleanSupplyData(data), [data]);
+  const cleanedData = useMemo(() => cleanSupplyData(merged ? merged.data : data), [merged, data]);
 
   // 核心資料管線 Step 2：排序 + 篩選（最新十筆語意見 selectVisibleRecords）
   const processedData = useMemo(() => {
@@ -157,6 +176,36 @@ export default function App() {
             ⚠️ 已連續 {data?.frozen_runs} 次觀測未見上游公告日期前進
             （最新公告：{data?.upstream_max_date}），清單時效需留意。
           </span>
+        </div>
+      )}
+      {/* 公告頁補抓狀態（增量 S）：紅色逐條列出、互不遮蔽；與上方兩種警示並存 */}
+      {merged && merged.warnings.length > 0 && (
+        <div role="alert" style={{
+          background: '#fef2f2',
+          borderBottom: '2px solid #fca5a5',
+          color: '#991b1b',
+          padding: '10px 16px',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+        }}>
+          {merged.warnings.map(w => <div key={w}>⚠️ {w}</div>)}
+          <div>
+            🔗 <a href="https://dsms.fda.gov.tw/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+              食藥署西藥供應資訊網站
+            </a>
+          </div>
+        </div>
+      )}
+      {merged && merged.info && (
+        <div role="status" style={{
+          background: '#fffbeb',
+          borderBottom: '2px solid #fcd34d',
+          color: '#92400e',
+          padding: '10px 16px',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+        }}>
+          <span>ℹ️ {merged.info}</span>
         </div>
       )}
       {/* 導覽列 */}
@@ -375,6 +424,8 @@ function YearGroup({ year, months, theme, defaultOpen }: { year: string, months:
 
 function MonthGroup({ month, items, theme, defaultOpen }: { month: string, items: DrugRecord[], theme: Theme, defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
+  // 增量 S（B9）：key 用內容身分＋同組序號；opendata 的「編號」跨更新不穩定
+  const keys = useMemo(() => recordKeys(items), [items]);
   return (
     <div className="month-group">
       <button className="month-group__toggle" onClick={() => setOpen(!open)}>
@@ -384,7 +435,7 @@ function MonthGroup({ month, items, theme, defaultOpen }: { month: string, items
       {open && (
         <div className="month-group__list">
           {items.map((item, i) => (
-            <DrugCard key={item.許可證字號 || item.編號 || String(i)} item={item} theme={theme} />
+            <DrugCard key={keys[i]} item={item} theme={theme} />
           ))}
         </div>
       )}
@@ -398,6 +449,7 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
   const [zhName, enName] = (item.中文品名 || '').split('\n');
   const d = item._days ?? 0;
   const altConfidence = alternativeConfidence(item._altText); // CR-07：替代藥信心分級
+  const sourceUrl = supplementListUrl(item); // 增量 S：補抓列的來源徽章
 
   return (
     <div className="drug-card">
@@ -412,6 +464,18 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
           <div className="drug-card__date">{item.公告更新時間}</div>
         </div>
         <div className="drug-card__right">
+          {sourceUrl && (
+            <a
+              className="recovery-tag recovery-tag--default"
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              title="此筆尚未收錄於政府開放資料，由食藥署西藥供應資訊網站補抓；點擊開啟官網列表"
+            >
+              公告頁補抓
+            </a>
+          )}
           {theme !== 'emerald' && (
             <span
               className={`recovery-tag recovery-tag--${d > 30 ? 'red' : d >= 14 ? 'amber' : 'default'}`}

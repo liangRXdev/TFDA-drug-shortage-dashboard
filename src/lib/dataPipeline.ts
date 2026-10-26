@@ -18,6 +18,9 @@ export interface DrugRecord {
   _theme?: Theme;
   _days?: number;
   _altText?: string | null;
+  /** 增量 S：由 dsms 公告頁補抓的列（opendata 列沒有此欄位）。 */
+  _來源?: 'dsms';
+  _案件編號?: string;
 }
 
 export interface SupplyData {

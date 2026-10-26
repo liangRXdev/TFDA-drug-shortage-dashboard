@@ -1,0 +1,341 @@
+
+
+<!DOCTYPE html>
+
+<html>
+<head><meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="description" /><meta name="author" /><meta http-equiv="Expires" content="0" /><meta http-equiv="Cache-Control" content="no-cache, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta name="robots" content="noindex, nofollow" />
+  
+  
+  
+  <script>if (top.frames.length != 0) top.location = encodeURI(self.location); </script>
+
+  <title>
+西藥醫療器材供應資訊平台
+</title><link href="Content/bootstrap/css/bootstrap.css" rel="stylesheet" /><link href="Content/css/Site.css?20251201" rel="stylesheet" /><link href="Content/css/justified-nav.css" rel="stylesheet" /><link id="linkThemeStyle" href="Content/css/ThemeStyle/Style1.css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><link rel="apple-touch-icon" sizes="57x57" href="favicon/apple-icon-57x57.png" /><link rel="apple-touch-icon" sizes="60x60" href="favicon/apple-icon-60x60.png" /><link rel="apple-touch-icon" sizes="72x72" href="favicon/apple-icon-72x72.png" /><link rel="apple-touch-icon" sizes="76x76" href="favicon/apple-icon-76x76.png" /><link rel="apple-touch-icon" sizes="114x114" href="favicon/apple-icon-114x114.png" /><link rel="apple-touch-icon" sizes="120x120" href="favicon/apple-icon-120x120.png" /><link rel="apple-touch-icon" sizes="144x144" href="favicon/apple-icon-144x144.png" /><link rel="apple-touch-icon" sizes="152x152" href="favicon/apple-icon-152x152.png" /><link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-icon-180x180.png" /><link rel="icon" type="image/png" sizes="192x192" href="favicon/android-icon-192x192.png" /><link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png" /><link rel="icon" type="image/png" sizes="96x96" href="favicon/favicon-96x96.png" /><link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png" /><link rel="manifest" href="favicon/manifest.json" /><meta name="msapplication-TileColor" content="#ffffff" /><meta name="msapplication-TileImage" content="~/favicon/ms-icon-144x144.png" /><meta name="theme-color" content="#ffffff" />
+  
+
+  <script src="/Scripts/jquery-3.7.1.min.js"></script>
+  <script src="/Content/bootstrap-4.4.1-dist/js/bootstrap.min.js"></script>
+
+  
+  
+  
+  <style type="text/css">
+    .tablerwd th,  .tablerwd td {
+      border: 1px solid #aaa;
+      border-collapse: collapse;
+      padding: 3px 5px;
+    }
+
+    .tablerwd {
+      margin: 1em auto;
+    }
+
+      .tablerwd th {
+        white-space: nowrap;
+        background: #F7F8FA;
+        color: #333;
+      }
+
+      .tablerwd > thead > tr > th:nth-child(1) {
+        width: 25%;
+      }
+
+      .tablerwd tr:nth-child(even) {
+        background: #f5f5f5;
+      }
+
+    @media only screen and (max-width: 768px) {
+      .tablerwd thead {
+        display: none;
+      }
+
+      .tablerwd td {
+        display: flex; /*block;*/
+        padding: 0.3rem 0.5rem;
+      }
+
+        .tablerwd td:before {
+          content: attr(data-title);
+          display: inline-block;
+          width: auto;
+          min-width: 22%;
+          font-weight: 900;
+          padding-right: 1rem;
+        }
+    }
+
+    @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) and (max-width: 768px) {  
+        .tablerwd td
+        {
+           display: block;
+        }
+      }
+  </style>
+</head>
+<body class="body">
+  <form method="post" action="./DrugInfo.aspx?No=3iiNn1ER4ToMnlbJSzlr5w%3d%3d&amp;s=3&amp;from=DrugList&amp;r=224921470" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="Axb9SvmhR/Y73Ei7Wzv88kYkssTOm9YgCAlR7RzMrehpHMWzW+PD0d6f7guAis89kI4Lalubi8mjxHO93sws0PuwarHgnM2uAaPFa1vye38XECNmBgGdYwXeiyTyNOh+n80/FjzSxcKZ6tn4jjioV9WIISNE1GWhz9xic6hc6dXEdOofgzdUyHj/9nbC6gGYDwPDhYlGL46Ohpuv0JuKMQJvOl4oYMK/YI5rMgjxwPSxMYOY+sYrgv1dQqqym6s4Qwr2tOePg20q8sSFCOrFlhIqibkfQGm74c5kYESG8I+gliZWq3Up/y6aGMX9i9TZMbRuT/FhVMUEyxbhgxDt5Ww7I3RTUxFmwo6RdZUfctTOnoC20xRNdXGWMm/hskp47swqU4D/lbcGJgwC2UfqY3fCRgvEvHzfPSQn+avt9S16IQwxUCwAWN09b/YLtXxLU2UYvIPNPpyfmtjq1JobaRcR8AipwH93t5rFJt8o200Nu2RKKBXIAVe/DpFOo+blPQYTVJf5LQfNJQC25MR2Bd9uMRXpKxODNl17HiudnLE+ySTWqsZmwr9rJJX49DuPhIR/82HC99zG6kIrkfR7AhDaVjzINpiFreu7QzQV10DJ0xzKWK1LLhKgVCh1EvdSX/ktdP64iwsP1WuSgclZ5AHZslrLJlDgAaVgXb7wmKTaiZRukT12Z+sKh/T+VW7wPEovAosG2VdhZ9Q2seivWqRNG1BcvkZqBZTioxdoDxuU7cY/XxSFCVkzBUOS7iJB+OoGjltNScgqxZjysujTNOhOML/CfT9jVO6bXUbrSsXmswuvkxMEQITRGsxGoKFcrxgjboLajSb4pnV081bDpMPVWNgc+g3Z128JnIy9kP7XWM3PSRQM8Dua9kG/hOL3DBUxPPScX2KHaK0+pG9Zl78oYUFPsgOYkmET1uKvw3X+yOyoNWd9e+tlnuRjqENjIfK8iHjwgj5fTq/zt5x7iYCXdgmgK7XIfjlb2+R6UbSSqA/5d0sN7WzcwiY7p4HRHoJqutorRWqArYbiDgrWUwW+U8012FrOaXQ5MwW5+Wg4I0WajckBr/BJ4SqgkjsZHv6RrEP02mXN5ixUnjoiYqoNJ7p20gM2iCB6UCM2IC5L3onS261WLAGyMPbj/Y3NLziDKABkbYHX6gUI0lnnCzFF5zJ9guzWGLlbb9O5wDjE3l6APPqwjTxeVHedaW//JA4Ic3KaX6R19+uCp7ZtampYuzl3rFbTbX5X2EU4vnPHmsdlvQGJylYTigt2uG9yWTNyCruv2q91qBtu4BnJv+mS5IrknpxuDtxB4J6FsX3qeKAdBYm54REAaGYPAlrktzsagrCA7nOokXiC8zjzh6EUMkb/4R3VgEw9mlCrpcWQSvYmpErWtkXJlwB09gAqGdZeKbZjPv2L6WnrU3xxK/vhCw55HPeZFRIrq34/zeOH5gRJRo7s/QQzqv6Oun27b30Hpqdz0KUGAUtDaj+bVmovGADTFavZls7eNcaqfPMT89GNym/i8mAmNEK9hMe8b8ooGAbK2aGG69k2I3TObAVP2ent9k3ou4u+1EqmtC1W5dyZ9FlwWDOelwfi4AGsKZlyH8QPSw02jO7h6fHfxaiUSi1XQtq4h+9D5BzN9WHd+YONRheSvH3ggURxAzlDcSSHGEZ7vI7u5lODujUcCdUml4Wx2K/PBAzmYwEUJmXJCf+3h0dh1Ju/wx7gFh/3xWhygrO9KRbKMewi415BFqwBbsq+y1mtm0K/kW/zyMMGXAUecQywdvQwz4MXQ6/zjDa8GkPOADk5q/VMQLI7pSZzzZt8q1HAs+SZ55exZlVk/z/9FYtvNEL6bRVWJIDR+xEwZHp6qxlmpP3JwEQYnOXZOUKG8+rj6FOUysKqNhM2U0QQ6MvqlrajVVXjpUnzD8co8KoUintsrSyZRs6OKI36QRYt6UpKcuMR8dc44H0H+VDCjiYpRn8KTGJ1n2NS4Z3OOOjsVmUtQuJ98hdBEsuZhs6prgVqkAtY/ny0us5fhBbEkwbw16j5pRnCITl405icKiThmJb3Y1sgaCyNH0y/1v/mtOYAX97GRTNrfgsW2ZisjnroVmkfW7UVPD4wH68drHWbGJaTQOS80yMu/VLYPDmpcuchL+AJrX39qendMNW2tct/9tQaPSVSrqbRoOH+NN+emclqg8TykjBsElk0h9R23aCVQ+hhBvMNTX4tjldcD8todHroBOuEVfMQMsLqKGMC3kUQsLuMPMIUmBatTgiECJ8aT5zWOr/g1xfiWCStxhNSglc0QxVzu2U83lVgCvgYlThmA7kvDMzjMqgobAZDGmT4+CtiRt/Jn+qZQdvTtFdX59ZLAZXywpFoly/gfOGXLpqcOwJHoSgGDwjBL0lLC9G8skqWPK65q+bkntnqct/hM9RJi0JTtFk+pTyK0D5PjUYCehmiYAx7TuTw+c+szveQl6AV/Et/EYkhURvCaVUwcluz1Q4+RNR7PA70nl6rOiEDMZrdKpPImu9aOhZVIRSBGrXo05XtT+dzozbooAZvqyflPNGoXBN2XDzHayia8DpnlM4o882PNA==" />
+</div>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="2722B625" />
+	<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="qkcyXWWxddtrFWE7GIGOuHls6HP4ubp45KOM+4SDEN3Xf1I2NJYcB2eqQU3yWTJzBdAvXnuHxpRS+Ys4nNDiN/BJtGDkxp8APIFH5b3b9Jhb1EU8EwoYzTUv+wtk/YVZzvXoNP+MJQB1Q6es9reeJPx8NJ0zmXZXQ2/pUje89ULVmxJKvp+FF50Qk/tgT/UrRHKa/D6YfBHSgSQb4kVE3D2OVnPBoDijgxvLjZj1faw=" />
+</div>
+    <div style="background: white;">
+      <div class="container margin-bottom1" style="padding-top: 5px; padding-bottom: 3px;">
+        <div class="row2">
+          <a href="http://dsms.fda.gov.tw">
+            <div class="col-md-6">
+              <div style="display: inline-block;">
+                <img class="img-responsive" alt="" src="Content/images/logo-en.gif" style="width: 100px;" />
+              </div>
+              <div style="display: inline-block; vertical-align: bottom; padding-bottom: 6px;">
+                <p class="fw" style="font-size: 29px; color: #FA8500">西藥醫療器材供應資訊平台</p>
+              </div>
+            </div>
+          </a>
+
+          <div class="col-md-6 padding-top1 kwsetting">
+            <div class="input-group stylish-input-group searchwidth searchRWD" style="float: left;">
+              <input name="ctl00$txtKeyWords" type="text" id="txtKeyWords" class="form-control" PlaceHolder="請輸入藥品關鍵字" />
+              <span class="input-group-addon" style="padding-top: 5px;">
+                <input type="image" name="ctl00$imbtnSearch" id="imbtnSearch" src="Content/images/search2.png" style="width: 18px;" />
+              </span>
+            </div>
+            <div class="hidden-xs" style="float: left">
+              <table style="width: 138px;">
+                <tr>
+                  <td>
+                    <input type="submit" name="ctl00$btnSearch" value="搜尋" id="btnSearch" style="border: none; display: inline-block; background-color: #46D021; color: #FFF; border-radius: 5px; padding: 3px 10px; margin-left: 8px; margin-top: 3px;" />
+                    <a href="http://dsms.fda.gov.tw/DSMS/" rel="noopener noreferrer" style="display: inline-block; background-color: orange; color: #FFF; border-radius: 5px; padding: 3px 10px; margin-left: 10px; margin-top: 3px;">登入</a>
+                  </td>
+                </tr>
+              </table>
+
+            </div>
+
+            
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container-fluid">
+      <div class="row searchAduject">
+        <div class="col-md-12 col-sm-12 col-xs-12" style="padding: 0px;">
+          <nav class="navbar navbar-default menucolor" style="border-bottom: 2px solid white;">
+            <div class="container">
+              <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false"><span class="sr-only">Toggle navigation</span><span>選單</span></button>
+              </div>
+              <div class="navbar-collapse collapse" id="bs-example-navbar-collapse-1" aria-expanded="false" style="height: 1px;">
+                <ul class="nav navbar-nav menu">
+                  <li><a href="http://dsms.fda.gov.tw" class="fw" style="line-height: 20px;">首頁</a></li>
+                  <li><a href="About.aspx" id="a_About" class="fw" style="line-height: 20px;">設置宗旨</a></li>
+                  <li class="dropdown"><a id="a_NewList78" class="fw dropbtn" style="line-height: 20px;">公告資訊</a>
+                    <div class="dropdown-content">
+                      
+                      <a href="/NewsList.aspx?s=7&r=747051736">違反藥事法廠商</a>
+                    </div>
+                  </li>
+                  <li><a href="DrugList.aspx?s=3" id="a_DrugList3" class="fw" style="background: white !important;color: black !important;border-top: 1px solid #ccc;margin-top: -1px;border-bottom: 1px solid #ccc;margin-bottom: -1px;">建議使用替代藥品或其他建議</a></li>
+                  <li><a href="DrugList.aspx?s=2" id="a_DrugList2" class="fw" style="line-height: 20px;">已恢復供應藥品品項</a></li>
+                  <li><a href="ProjectManufacture.aspx" id="a_NewsList2" class="fw" style="line-height: 20px;">專案輸入/製造專區</a></li>
+                  <li><a href="NewsList.aspx?s=6" id="a_NewsList6" class="fw" style="line-height: 20px;">鼓勵業者申請許可證</a></li>
+                  
+                  
+                  
+                                    
+                  
+                  <li><a href="Md_Section.aspx" id="a_Md_Section" class="fw" style="line-height: 20px;">醫療器材專區</a></li>
+                  <li><a href="DownLink.aspx" id="a_DownLink" class="fw" style="line-height: 20px;">下載及相關連結</a></li>
+                  <li><a href="CaseSearch.aspx" id="a_CaseSearch" class="fw" style="line-height: 20px;">案件查詢</a></li>
+                  <li><a href="FAQ.aspx" id="a_FAQ" class="fw" style="line-height: 20px;">FAQ</a></li>
+                  <li><a href="D001/UserManual.pdf" id="a_UserManual" class="fw" style="line-height: 20px;" target="_blank">操作手冊</a></li>
+                </ul>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      <div id="headerImg" class="row" style="display:none">
+        <div class="col-md-12 col-sm-12 col-xs-12 effect2 " style="padding: 0px; margin-top: -21px;">
+          <div class="hovereffect" style="border-bottom: 1px solid #ccc;background-image: linear-gradient(120deg, #ffffff 0%, #75cef7 100%);">
+            <img alt="" src="Content/images/header6.jpg" class="img-responsive" style="    margin: 0 auto;" />
+          </div>
+        </div>
+      </div>
+      <div class="container2" style="min-height: 600px;">
+        
+  <br />
+  <h3 class="page-header margin-left-right1">
+    <span id="ContentPlaceHolder1_lblPC">&quot;&#20117;&#30000;&quot;&#21487;&#22013;&#24179;&#37664;</span><span id="ContentPlaceHolder1_lblTitle"></span>
+    
+  </h3>
+  <div class="row">
+    <div class="col-md-12 margin-left-right1">
+      <div class="table-responsive">
+        <table class="table table-bordered" style="font-size: 18px;">
+          
+          
+          <tr>
+            <td class="tdTitle r color1 fw">案件編號</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblSystemNo" class="wsnwbb">1150570</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">中文品名</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblProductNameC" class="wsnwbb">&quot;&#20117;&#30000;&quot;&#21487;&#22013;&#24179;&#37664;</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">英文品名</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblProductNameE" class="wsnwbb">COSOPIN TABLETS &quot;CHINTENG&quot;</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">許可證字號</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblLicense" class="wsnwbb">&#34907;&#32626;&#34277;&#35069;&#23383;&#31532;040794&#34399;</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">申請商</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblApplicant" class="wsnwbb">&#20117;&#30000;&#22283;&#38555;&#37291;&#34277;&#24288;&#32929;&#20221;&#26377;&#38480;&#20844;&#21496;</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">學名 (成分)</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblComponent" class="wsnwbb">CODEINE PHOSPHATE,TERPIN HYDRATE</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">劑型</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblFormDrug" class="wsnwbb">&#37664;&#21137;</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tdTitle r color1 fw">含量或規格</td>
+            <td>
+              <span id="ContentPlaceHolder1_lblSpecification" class="wsnwbb">15 mg/tab</span>
+            </td>
+          </tr>
+          
+        </table>
+        </div>
+        <div>
+	<table cellspacing="0" rules="all" class="table table-bordered tablerwd" data-expand-all="true" border="1" id="ContentPlaceHolder1_grvPublishList" style="border-collapse:collapse;font-size: 18px;">
+		<thead>
+			<tr>
+				<th scope="col">原因分析</th><th scope="col">評估結果說明</th><th scope="col" style="width:15%;">更新日期</th>
+			</tr>
+		</thead><tbody>
+			<tr>
+				<td data-title="原因分析">
+                <span id="ContentPlaceHolder1_grvPublishList_lblPublishShortageCause_0">生產問題</span>
+              </td><td data-title="評估結果說明">
+                <span id="ContentPlaceHolder1_grvPublishList_lblPublishContent_0">1.井田國際醫藥廠股份有限公司表示，因生產問題，目前該藥品暫停出貨，恢復供應時程未知。<br/>2.建議使用同成分同劑型同含量之藥品替代，如：<br/>◎嗽隨康錠 SAUSCON TABLETS (衛署藥製字第014277號) (訂購請洽溫士頓醫藥股份有限公司)<br/>◎可待平錠 Codepine Tablets (衛署藥製字第050090號) (訂購請洽生達化學製藥股份有限公司)<br/>◎&quot;華興&quot; 安咳停錠 Ancopin Tablets &quot;H.S.&quot; (衛署藥製字第049089號) (訂購請洽華興化學製藥廠股份有限公司)</span>
+              </td><td data-title="＾更新日期" style="white-space:nowrap;">
+                <span id="ContentPlaceHolder1_grvPublishList_lblPublishUpdateTime_0">2026/10/07</span>
+              </td>
+			</tr>
+		</tbody>
+	</table>
+</div>
+        
+      
+    </div>
+  </div>
+  <div class="end-btn" style="padding-top: 13px;">
+    <a class="btn_01" href="http://dsms.fda.gov.tw" style="color: white; text-decoration: none; padding-top: 7px; padding-bottom: 9px;">返回首頁</a>
+    
+    <input type="submit" name="ctl00$ContentPlaceHolder1$btnBack" value="返回上頁" id="ContentPlaceHolder1_btnBack" class="btn_01" />
+    
+  </div>
+
+  
+
+      </div>
+    </div>
+    <footer id="footer" class="rowspace">
+      <div class="container c" style="padding-top: 3px;">
+
+        <div style="display: inline-block;vertical-align: super;">
+          <img class="img-responsive" alt="" src="../Content/images/logo-en.gif" style="width: 130px;" />
+        </div>
+        <div class="l" style="display: inline-block; vertical-align: bottom; padding-left: 5px;">
+          <p>
+          <a href="https://www.fda.gov.tw/TC/security.aspx" title="資訊安全策略" rel="noopener noreferrer" target="_blank">資訊安全策略</a>
+            <span style="position: relative; top: -1px; margin: 0 6px; }">|</span>
+            <a href="https://www.fda.gov.tw/TC/privacy.aspx" title="隱私權保護宣告" rel="noopener noreferrer" target="_blank">隱私權保護宣告</a>
+            <span style="position: relative; top: -1px; margin: 0 6px; }">|</span>
+            <a href="https://www.fda.gov.tw/TC/copyright.aspx" title="著作權聲明" rel="noopener noreferrer" target="_blank">著作權聲明</a>
+            </p>
+          <p>衛生福利部食品藥物管理署 © 2026版權所有 建議最佳瀏覽解析度為1024x768或以上</p>
+          <p>地址 115021 臺北市南港區研究院路一段130巷109號　電話 (02)2787-8000</p>
+          <p>系統操作諮詢服務信箱: eofficedm@gmail.com　操作服務專線 (02)2933-4566</p>
+        </div>
+
+      </div>
+    </footer>
+
+
+    <a href="#" id="back-to-top" title="Back to top">
+      <img class="back-to-top-image" alt="" src="Content/images/Back_to_top.png" /></a>
+
+    <script>
+      if ($('#back-to-top').length) {
+        var scrollTrigger = 100, // px
+       backToTop = function () {
+         var scrollTop = $(window).scrollTop();
+         if (scrollTop > scrollTrigger) {
+           $('#back-to-top').addClass('show');
+         } else {
+           $('#back-to-top').removeClass('show');
+         }
+       };
+        backToTop();
+        $(window).on('scroll', function () {
+          backToTop();
+        });
+        $('#back-to-top').on('click', function (e) {
+          e.preventDefault();
+          $('html,body').animate({
+            scrollTop: 0
+          }, 700);
+        });
+      }
+    </script>
+
+    <script type="text/javascript">
+      //window.onload = function () {
+      $(document).ready(function () {
+        
+        //var txt = document.getElementsByTagName("input");
+        //for (var i = 0; i < txt.length; i++) {
+        //  if (txt[i].type == "text") {
+        //    txt[i].setAttribute("onkeydown", "return(event.keyCode!=13);")
+        //    txt[i].setAttribute("autocomplete", "off")
+        //  }
+        //}
+        
+        var links = document.getElementsByTagName("a");
+        for (var i = 0; i < links.length; i++) {
+          links[i].setAttribute("rel", "noopener noreferrer");
+        }
+      });
+    </script>
+
+  </form>
+</body>
+</html>
