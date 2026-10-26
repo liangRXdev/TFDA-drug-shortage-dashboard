@@ -1,8 +1,8 @@
 # 註冊 dsms 補抓的每日排程（增量 S，plan-supplement.md D11）。只需執行一次。
 #
-# 前置（只需一次）：在 repo 根目錄建立 venv 並安裝 requests
+# 前置（只需一次）：在 repo 根目錄建立 venv 並安裝 requests（鎖定版本，與 README 手動執行指令一致）
 #     uv venv
-#     uv pip install requests
+#     uv pip install requests==2.34.2
 #
 # 每個參數都是修掉一個實際會咬人的預設值，別省：
 # - -StartWhenAvailable：關機錯過的排程在下次開機補跑。這台不是全天開，少了它會靜默漏跑。

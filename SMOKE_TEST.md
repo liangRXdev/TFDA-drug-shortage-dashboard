@@ -25,8 +25,19 @@
 | 9 | 先線上載入一次 → DevTools Offline → 重載（有快取、新鮮） | 顯示快取資料，補抓橫幅與 #1 相同 |
 | 10 | 同 #9，但快取的補抓檔已過期（先把 `last_success_at` 改舊再載入一次） | 離線時一樣亮紅「N 天未更新」，不會被當成最新 |
 | 11 | Clear site data → Offline → 重載（無快取） | 主資料載入失敗頁（既有行為）；不會出現「沒有缺口」的假象 |
+| 12 | 頁面開著不重整，跨過某類 `last_success_at`＋3 天（可把系統時間調後，或改檔讓到期時刻落在數分鐘後再等待） | 到期後約 1 秒自動轉紅、舊版重新出現；切回分頁或視窗取得焦點也會立即重算（R4） |
+| 13 | 註冊排程後執行 `Export-ScheduledTask -TaskName 'TFDA-shortage-supplement'` | XML 內有 `<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>`、`<StartWhenAvailable>true</StartWhenAvailable>`、`<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>`（單元測試只能檢查註冊腳本，實機設定須在此核對） |
 
 ### 執行紀錄
-- **2026-10-26**（`feat/dsms-supplement`，Claude 以 Chrome 實測）：#1、#2、#3（s2 4 天前）、#4／#5／#6（s2 error）、#7、#8 通過。
+- **2026-10-26 第 1 次**（`feat/dsms-supplement` @ `34054ca`，Claude 以 Chrome 實測）：#1、#2、#3（s2 4 天前）、#4（s2 error）、#7、#8 通過。
   實測計數：正常 239；s2 error／過期／版本不一致 240（舊版滅必治 05/07 保留）；無差異與補抓檔缺失 237。
+  **更正（覆審 S-C4）**：當時紀錄寫 #5、#6 通過，**不實**——真實補抓檔的 s2 additions 是空的，#5 的「恢復公告間接藏缺藥」
+  路徑根本沒有被觸發；#6 實際看到的是「改日期修訂」的新舊並列，不是同日修訂。以下第 2 次以構造資料重測。
   #9–#11（離線）未測：瀏覽器擴充無法切換 DevTools Offline，待人工補測。
+- **2026-10-26 第 2 次**（覆審修正後，Claude 以 Chrome 實測；構造資料以主檔真實的 COSOPIN 缺藥列為目標，
+  改寫 `dist/data/supply_supplement.json`，每份都先通過 `output_problems()` 契約檢查）：
+  - #5 對照組（三類皆 ok，s2 新增 COSOPIN 10/20 恢復公告）：COSOPIN 移到「藥品已解除短缺」並帶「公告頁補抓」徽章；有替代 239→238、已解除 405→406
+  - **#5（s2 error、沿用同一筆非空恢復公告）：COSOPIN 仍在「經評估【有】替代藥品」**，供應說明為原缺藥文字；紅色列出「已恢復」類失敗＋新舊並列文案。通過
+  - #6 對照組（三類皆 ok，s3 同日 10/07 修訂）：只剩新版（帶徽章、說明為修訂文字）
+  - **#6（同上但 s2 error）：新舊兩版並列於有替代區，紅色文案含「同一藥品可能有新舊版本並列，供應說明請以官網為準」**；同證同日兩張卡片各自展開、內容各自對應。通過
+  - #12、#13 待人工（需等待到期或實機註冊排程）

@@ -17,7 +17,7 @@ exit 碼：0 = 全 ok 且已發布（或無變動）；2 = 部分 error 且已�
          3 = 發布失敗（commit 留在本機，下次一併推出）；1 = 同步失敗或主檔不可用，未發布。
 
 手動執行（會顯示輸出）：
-    uv run --with requests python scripts/update_supplement.py
+    uv run --with requests==2.34.2 python scripts/update_supplement.py
 
 排程註冊見 scripts/register_supplement_task.ps1（一律用 venv 的 pythonw.exe，
 避免每日閃主控台視窗；參數理由寫在該檔）。

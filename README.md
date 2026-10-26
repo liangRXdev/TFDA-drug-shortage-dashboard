@@ -83,15 +83,15 @@ npm run lint       # ESLint
 uv run --with requests python scripts/fetch_fda_data.py
 
 # Supplement scraping (needs a Taiwan network): sync remote → scrape → commit/push if changed
-uv run --with requests python scripts/update_supplement.py
-# Register the daily task (once; run `uv venv && uv pip install requests` first)
+uv run --with requests==2.34.2 python scripts/update_supplement.py
+# Register the daily task (once; run `uv venv && uv pip install requests==2.34.2` first)
 powershell -File scripts/register_supplement_task.ps1
 ```
 
 ### 4. Tests
 ```bash
-npm run test                                        # data pipeline + supplement apply (Vitest, 166 cases)
-uv run --with pytest --with requests pytest scripts # ETL / stale detection / supplement / task wrapper (pytest, 180 cases)
+npm run test                                        # data pipeline + supplement apply (Vitest, 195 cases)
+uv run --with pytest --with requests pytest scripts # ETL / stale detection / supplement / task wrapper (pytest, 234 cases)
 ```
 Browser behaviour (supplement banners, offline cache) is covered by `SMOKE_TEST.md`.
 

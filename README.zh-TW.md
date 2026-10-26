@@ -83,15 +83,15 @@ npm run lint       # ESLint 檢查
 uv run --with requests python scripts/fetch_fda_data.py
 
 # 公告頁補抓（需台灣網路）：同步遠端 → 抓取 → 有變動就 commit/push
-uv run --with requests python scripts/update_supplement.py
-# 每日排程註冊（只需一次，先 uv venv && uv pip install requests）
+uv run --with requests==2.34.2 python scripts/update_supplement.py
+# 每日排程註冊（只需一次，先 uv venv && uv pip install requests==2.34.2）
 powershell -File scripts/register_supplement_task.ps1
 ```
 
 ### 4. 測試
 ```bash
-npm run test                                        # 前端資料管線＋補抓套用 (Vitest, 166 案)
-uv run --with pytest --with requests pytest scripts # ETL／停更偵測／補抓／排程包裝 (pytest, 180 案)
+npm run test                                        # 前端資料管線＋補抓套用 (Vitest, 195 案)
+uv run --with pytest --with requests pytest scripts # ETL／停更偵測／補抓／排程包裝 (pytest, 234 案)
 ```
 瀏覽器行為（補抓橫幅、離線快取）見 `SMOKE_TEST.md`。
 
