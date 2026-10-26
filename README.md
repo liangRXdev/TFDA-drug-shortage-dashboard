@@ -32,7 +32,8 @@ The project uses a **serverless + SSG (static site generation)** architecture fo
 | :--- | :--- | :--- |
 | **Data source** | Ministry of Health and Welfare open data API | Endpoint codes: `104` (alternative available), `105` (no alternative), `106` (resolved) |
 | **ETL** | GitHub Actions + Python | Runs `fetch_fda_data.py` early every Friday morning, cleaning data and merging it into `supply_status_latest.json`. Fail-closed, and serialized with a `concurrency` group (only one copy of cross-run state) |
-| **Frontend rendering** | React + TypeScript + Vite | Reads static JSON and renders a responsive UI with custom CSS (BEM naming) |
+| **Supplement scraping** | Local scheduled task + Python | While the open data is frozen, a daily local task runs `update_supplement.py`, diffs a full list snapshot of the TFDA drug-supply website against the main file, and writes only `supply_supplement.json` (never the main file). The site may block non-Taiwan IPs, so this does not run on GitHub Actions |
+| **Frontend rendering** | React + TypeScript + Vite | Reads static JSON and renders a responsive UI with custom CSS (BEM naming); applies the supplement diff and shows per-category red warnings when the supplement is unavailable |
 | **Hosting** | GitHub Pages | Served from GitHub's global CDN for fast loading |
 
 ### Data file format (`public/data/supply_status_latest.json`)
@@ -80,13 +81,19 @@ npm run lint       # ESLint
 # Fetch TFDA 104/105/106 open data and merge into public/data/supply_status_latest.json
 # Fail-closed: any connection / HTTP / JSON / validation failure on any endpoint aborts without overwriting existing data
 uv run --with requests python scripts/fetch_fda_data.py
+
+# Supplement scraping (needs a Taiwan network): sync remote → scrape → commit/push if changed
+uv run --with requests python scripts/update_supplement.py
+# Register the daily task (once; run `uv venv && uv pip install requests` first)
+powershell -File scripts/register_supplement_task.ps1
 ```
 
 ### 4. Tests
 ```bash
-npm run test                                        # frontend data-pipeline unit tests (Vitest, 103 cases)
-uv run --with pytest --with requests pytest scripts # ETL fail-closed / schema / stale detection (pytest, 75 cases)
+npm run test                                        # data pipeline + supplement apply (Vitest, 166 cases)
+uv run --with pytest --with requests pytest scripts # ETL / stale detection / supplement / task wrapper (pytest, 180 cases)
 ```
+Browser behaviour (supplement banners, offline cache) is covered by `SMOKE_TEST.md`.
 
 ### 5. Specs and review records
 
@@ -97,3 +104,4 @@ Before changing a feature, read the "non-goals" section of its spec — it is th
 | :--- | :--- | :--- |
 | Whole-repo code review (CR-01–CR-14) | — | `codex-review.md` / `verdict.md` / `remediation-log.md` |
 | Upstream stale detection (F1–F15b) | `plan-upstream-freeze.md` | `plan-review-upstream-freeze.md` / `plan-verdict-upstream-freeze.md` |
+| Supplement scraping (S, three review rounds) | `plan-supplement.md` | `plan-review-supplement.md` / `plan-verdict-supplement.md` |

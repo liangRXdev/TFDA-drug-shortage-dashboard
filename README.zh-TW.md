@@ -32,7 +32,8 @@
 | :--- | :--- | :--- |
 | **資料來源** | 衛福部開放資料 API | 端點代碼：`104` (有替代), `105` (無替代), `106` (已解除) |
 | **ETL 處理** | GitHub Actions + Python | 每週五凌晨執行 `fetch_fda_data.py`，清洗資料並合併為 `supply_status_latest.json`。採 fail-closed，並以 `concurrency` group 序列化（跨執行狀態只有一份） |
-| **前端渲染** | React + TypeScript + Vite | 讀取靜態 JSON，使用自訂 CSS (BEM 命名法) 渲染響應式 UI |
+| **公告頁補抓** | 本機排程 + Python | opendata 停更期間，每日由本機排程執行 `update_supplement.py`，以食藥署西藥供應資訊網站的完整列表快照算出差異，只寫 `supply_supplement.json`（絕不寫入主檔）。網站可能封鎖境外 IP，故不在 GitHub Actions 執行 |
+| **前端渲染** | React + TypeScript + Vite | 讀取靜態 JSON，使用自訂 CSS (BEM 命名法) 渲染響應式 UI；補抓差異在前端套用，補抓失效時按類別亮紅色警示 |
 | **網頁託管** | GitHub Pages | 由 GitHub 全球 CDN 分發，提供極速的載入體驗 |
 
 ### 資料檔格式 (`public/data/supply_status_latest.json`)
@@ -80,13 +81,19 @@ npm run lint       # ESLint 檢查
 # 抓取食藥署 104/105/106 開放資料，合併為 public/data/supply_status_latest.json
 # 採 fail-closed：任一端點連線／HTTP／JSON／驗證失敗即中止，且不覆寫既有資料
 uv run --with requests python scripts/fetch_fda_data.py
+
+# 公告頁補抓（需台灣網路）：同步遠端 → 抓取 → 有變動就 commit/push
+uv run --with requests python scripts/update_supplement.py
+# 每日排程註冊（只需一次，先 uv venv && uv pip install requests）
+powershell -File scripts/register_supplement_task.ps1
 ```
 
 ### 4. 測試
 ```bash
-npm run test                                        # 前端資料管線單元測試 (Vitest, 103 案)
-uv run --with pytest --with requests pytest scripts # ETL fail-closed／schema／停更偵測 (pytest, 75 案)
+npm run test                                        # 前端資料管線＋補抓套用 (Vitest, 166 案)
+uv run --with pytest --with requests pytest scripts # ETL／停更偵測／補抓／排程包裝 (pytest, 180 案)
 ```
+瀏覽器行為（補抓橫幅、離線快取）見 `SMOKE_TEST.md`。
 
 ### 5. 規格與審查紀錄
 
@@ -97,3 +104,4 @@ uv run --with pytest --with requests pytest scripts # ETL fail-closed／schema�
 | :--- | :--- | :--- |
 | 全 repo 程式碼覆審（CR-01～CR-14） | — | `codex-review.md` / `verdict.md` / `remediation-log.md` |
 | 上游停更偵測（F1～F15b） | `plan-upstream-freeze.md` | `plan-review-upstream-freeze.md` / `plan-verdict-upstream-freeze.md` |
+| 公告頁補抓（S，三輪審查） | `plan-supplement.md` | `plan-review-supplement.md` / `plan-verdict-supplement.md` |
