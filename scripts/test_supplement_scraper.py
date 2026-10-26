@@ -51,13 +51,17 @@ def list_row_html(i, row):
 
 
 def pager_html(current, total):
-    cells = []
-    for n in range(1, total + 1):
-        if n == current:
-            cells.append(f"<td><span>{n}</span></td>")
-        else:
-            cells.append(f"<td><a href=\"javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug"
-                         f"&#39;,&#39;Page${n}&#39;)\">{n}</a></td>")
+    """比照 ASP.NET GridView：每 10 頁一組，組外以 `...` 連到相鄰組（見 list_s3_p11.html）。"""
+    def link(n, label):
+        return (f"<td><a href=\"javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug"
+                f"&#39;,&#39;Page${n}&#39;)\">{label}</a></td>")
+    start = (current - 1) // 10 * 10 + 1
+    end = min(start + 9, total)
+    cells = [link(start - 1, "...")] if start > 1 else []
+    for n in range(start, end + 1):
+        cells.append(f"<td><span>{n}</span></td>" if n == current else link(n, n))
+    if end < total:
+        cells.append(link(end + 1, "..."))
     return f'<tr align="center"><td colspan="5"><table><tr>{"".join(cells)}</tr></table></td></tr>'
 
 
@@ -230,12 +234,23 @@ def test_a1_melphalan_takes_newest_history_row():
     assert "預計115年8月底恢復供應" not in rec["供應狀態"]   # 04/30 那一列是舊版
 
 
+# 2026-10-26 官網易安穩詳情頁「評估結果說明」逐字（含 6 個替代藥，任何一項被截短、錯置都要失敗）
+EXFORGE_TEXT = "\r\n".join([
+    "1.台灣諾華股份有限公司表示，因供應問題目前控貨中，10月初有輸入供應，後續將持續輸入。",
+    "2.建議使用同成分同劑型同含量之藥品替代，如：",
+    "◎壓立平膜衣錠5/160毫克 Valsoon F.C. Tablets 5/160mg(衛部藥製字第059836號) (訂購請洽生達化學製藥股份有限公司二廠)",
+    "◎安普新膜衣錠5/160毫克 Exfopine Film-Coated Tablet 5/160mg (衛部藥製字第059821號) (訂購請洽永信藥品工業股份有限公司)",
+    "◎安沛穩膜衣錠5/160毫克 Amvlo Film-Coated Tablets 5/160mg (衛部藥製字第060457號)(訂購請洽永勝藥品工業股份有限公司)",
+    "◎易德壓悅膜衣錠5/160毫克(衛部藥製字第059771號)(訂購請美商亞培股份有限公司台灣分公司)",
+    "◎安壓雙好膜衣錠5/160毫克 Estengy F.C. Tablets 5/160mg(衛部藥製字第059643號) (訂購請洽中國化學製藥股份有限公司新豐工廠)",
+    "◎道脈樂5/160毫克膜衣錠 Dafiro 5/160mg Film-Coated Tablets(衛署藥輸字第025877號) (訂購請洽裕利股份有限公司)",
+])
+
+
 def test_a1_full_text_keeps_every_alternative():
     rec = sup.validate_detail(sup.parse_detail(read_fixture("detail_s3_exforge.html")),
                               real_row("易安穩"), "s3", TODAY)
-    alternatives = [line for line in rec["供應狀態"].split("\r\n") if line.startswith("◎")]
-    assert len(alternatives) == 6
-    assert alternatives[-1].startswith("◎道脈樂5/160毫克膜衣錠")
+    assert rec["供應狀態"] == EXFORGE_TEXT
 
 
 def test_a7_record_format_matches_opendata():
@@ -891,3 +906,156 @@ def test_revision_flow_end_to_end(tmp_path):
     assert s3["supersedes"] == [{"品名鍵": "滅必治軟膠囊50毫克", "公告更新時間": "2026/05/07",
                                  "許可證字號": "衛署藥輸字第020882號", "指紋": "舊說明"}]
     assert s3["base"] == {"last_updated": "2026-10-23 04:53:03", "upstream_max_date": "2026/10/07"}
+
+
+# ----------------------------------------------------------------------
+# 覆審補強（verdict-supplement.md T2／T3／S-A3／A6／A7／A8／A10）
+# ----------------------------------------------------------------------
+def test_a4_fourth_detail_bad_reverts_whole_category(tmp_path):
+    """規格 A4：前 3 筆詳情正常、第 4 筆壞 → 整類 error，結果與成功時間都回到前檔。"""
+    main_path = main_file(tmp_path)
+    drugs = [drug(str(1150800 + i), "2026/10/2%d" % (5 - i), f"甲藥{i}") for i in range(5)]
+    site = FakeSite({"s3": drugs, "s4": [], "s2": []})
+    _, first = run_once(tmp_path, site, main_path)
+    assert len(first["categories"]["s3"]["additions"]) == 5
+    site.detail_overrides["1150803"] = detail_html("1150803", "甲藥3", "EN", "藥字第1號",
+                                                   [("2026/10/22", "x")])
+    later = datetime(2026, 10, 27, 9, 10, tzinfo=sup.TAIPEI_TZ)
+    code, second = run_once(tmp_path, site, main_path, now=later)
+    s3, prev = second["categories"]["s3"], first["categories"]["s3"]
+    assert code == 2 and s3["state"] == "error" and "許可證字號無效" in s3["error"]
+    for key in ("additions", "supersedes", "last_success_at", "success_run_id", "base"):
+        assert s3[key] == prev[key], key
+
+
+def test_a1_same_day_revision_end_to_end(tmp_path):
+    """A1(b)：日期不變、只改文字，經詳情抓取的完整流程。"""
+    main_path = main_file(tmp_path, {"54504_with_alternative": [
+        opendata_row("1", "2026/10/07", "可嗽平錠", "COSOPIN", "衛署藥製字第040794號", "替代：◎甲藥")]})
+    site = FakeSite({"s3": [drug("1150570", "2026/10/07", "可嗽平錠", "COSOPIN", "衛署藥製字第040794號",
+                                 "替代：◎乙藥")], "s4": [], "s2": []})
+    code, out = run_once(tmp_path, site, main_path)
+    s3 = out["categories"]["s3"]
+    assert code == 0
+    assert [(a["公告更新時間"], a["供應狀態"]) for a in s3["additions"]] == [("2026/10/07", "替代：◎乙藥")]
+    assert s3["supersedes"] == [{"品名鍵": "可嗽平錠", "公告更新時間": "2026/10/07",
+                                 "許可證字號": "衛署藥製字第040794號", "指紋": "替代:◎甲藥"}]
+
+
+def _page2(cases, current=2, total=3):
+    # 日期落在第 1 頁之後、第 3 頁之前，確保失敗原因是本反例而不是日期排序
+    rows = [{"date": "2026/09/20", "zh": f"背景藥{i}", "case": str(c)} for i, c in enumerate(cases)]
+    return list_html("s3", rows, current=current, total=total) if current else list_html("s3", rows)
+
+
+@pytest.mark.parametrize("override", [
+    lambda: _page2(range(2000013, 2000025)),                 # 中間頁 12 筆
+    lambda: _page2(range(2000000, 2000013)),                 # 重複頁（與第 1 頁同案件）
+    lambda: _page2(range(2000013, 2000026), current=None),   # 滿 13 筆但沒有分頁列
+], ids=["中間頁短少", "重複頁", "提早截斷"])
+def test_a2_scan_errors_keep_previous_results(tmp_path, override):
+    """T3：A2 的反例經完整流程，驗證該類沿用前檔、其他類照常。"""
+    main_path = main_file(tmp_path)
+    site = FakeSite({"s3": drugs_n(33), "s4": [], "s2": []})
+    _, first = run_once(tmp_path, site, main_path)
+    site.overrides[("s3", 2)] = override()
+    later = datetime(2026, 10, 27, 9, 10, tzinfo=sup.TAIPEI_TZ)
+    code, second = run_once(tmp_path, site, main_path, now=later)
+    assert code == 2 and second["categories"]["s3"]["state"] == "error"
+    assert second["categories"]["s3"]["additions"] == first["categories"]["s3"]["additions"]
+    assert second["categories"]["s2"]["last_success_at"] == later.isoformat(timespec="seconds")
+
+
+def test_a2h_pager_group_jump_end_to_end():
+    """跨 10 頁一組的 `...` 跳組：實際請求到第 11 頁以後。"""
+    pages, client = scan(FakeSite({"s3": drugs_n(12 * 13 + 4)}))
+    assert [n for _, n in client.requests] == list(range(1, 14))
+    assert len(pages) == 13
+
+
+def test_a12b_cross_category_move_between_passes_fails_all(tmp_path):
+    """A12(b)：每一輪時一筆公告在 s3／s4 之間移動（各類單獨看都合法）→ 重試仍不同 → 三類 error。"""
+    x = drug("1150901", "2026/10/22", "移類藥")
+    main_path = main_file(tmp_path)
+    site = FakeSite({"s3": lambda n: [x] if n % 2 else [],
+                     "s4": lambda n: [] if n % 2 else [x], "s2": []})
+    code, out = run_once(tmp_path, site, main_path)
+    assert code == 2
+    assert all(c["state"] == "error" and "不一致" in c["error"] for c in out["categories"].values())
+
+
+def test_a12c_result_comes_only_from_retry_observation(tmp_path):
+    """A12(c)：各次觀測內容可區別——第 1 次兩輪不同（A、B），重試兩輪都是 C，結果必須是 C。"""
+    versions = {1: "A版", 2: "B版"}
+    main_path = main_file(tmp_path)
+    site = FakeSite({"s3": lambda n: [drug("1150902", "2026/10/22", versions.get(n, "C版"))],
+                     "s4": [], "s2": []})
+    code, out = run_once(tmp_path, site, main_path)
+    assert code == 0 and site.list_calls == 4
+    assert [a["中文品名"].split("\n")[0] for a in out["categories"]["s3"]["additions"]] == ["C版"]
+
+
+def test_a6_main_name_with_two_newlines_fails_category(tmp_path):
+    bad = opendata_row("1", "2026/09/01", "甲藥\n多一行", "EN")
+    main_path = main_file(tmp_path, {"54504_with_alternative": [bad]})
+    _, out = run_once(tmp_path, FakeSite({"s3": [], "s4": [], "s2": []}), main_path)
+    assert out["categories"]["s3"]["state"] == "error" and "結構不支援" in out["categories"]["s3"]["error"]
+
+
+@pytest.mark.parametrize("zh,en,expected", [
+    ("\"井田\"可嗽平錠", "COSOPIN TABLETS \"CHINTENG\"", "\"井田\"可嗽平錠\nCOSOPIN TABLETS \"CHINTENG\""),
+    ("「華興」安咳停錠", "Ancopin Tablets \"H.S.\"", "「華興」安咳停錠\nAncopin Tablets \"H.S.\""),
+    ("易安穩膜衣錠 5/160 毫克", "Exforge 5/160mg", "易安穩膜衣錠 5/160 毫克\nExforge 5/160mg"),
+    ("甲&乙注射劑", "A & B Injection", "甲&乙注射劑\nA & B Injection"),
+    ("只有中文", "", "只有中文"),
+])
+def test_a7_name_formats(zh, en, expected):
+    row = sup.ListRow("2026/10/01", zh, en, "x", "1000001", "t$lbtnProductNameC")
+    detail = sup.parse_detail(detail_html("1000001", zh, en, "衛署藥製字第000001號", [("2026/10/01", "說明")]))
+    assert sup.validate_detail(detail, row, "s3", TODAY)["中文品名"] == expected
+
+
+def test_a8_cli_exits_1_when_main_unusable(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)   # 沒有 public/data/supply_status_latest.json
+    with pytest.raises(SystemExit) as exc:
+        sup.main()
+    assert exc.value.code == 1
+    assert "主檔不可用" in capsys.readouterr().err
+    assert not (tmp_path / "public").exists()
+
+
+# ----------------------------------------------------------------------
+# A10 跨端：Python 實際產出的快照交給前端測試（src/lib/supplement.test.ts）
+# ----------------------------------------------------------------------
+CROSS_FIXTURE = os.path.join(HERE, "fixtures", "cross_s2_error_carried.json")
+
+
+def build_cross_snapshot(tmp_path):
+    """s2 先成功產出 V 的恢復公告，再失敗而沿用；V 在主檔 104 仍是缺藥。"""
+    v_main = opendata_row("1", "2026/10/01", "V藥", "EN", "衛署藥輸字第000777號", "缺藥中")
+    main_path = main_file(tmp_path, {"54504_with_alternative": [v_main]})
+    site = FakeSite({"s3": [drug("1150777", "2026/10/01", "V藥", "EN", "衛署藥輸字第000777號", "缺藥中")],
+                     "s4": [],
+                     "s2": [drug("1150778", "2026/10/20", "V藥", "EN", "衛署藥輸字第000777號", "已恢復")]})
+    run_once(tmp_path, site, main_path, now=datetime(2026, 10, 26, 9, 0, tzinfo=sup.TAIPEI_TZ))
+    site.overrides[("s2", 1)] = "<html></html>"
+    _, out = run_once(tmp_path, site, main_path, now=datetime(2026, 10, 26, 10, 0, tzinfo=sup.TAIPEI_TZ))
+    with open(main_path, encoding="utf-8") as f:
+        main = json.load(f)
+    # run_id 含亂數：換成固定值讓 fixture 可重現（保留「是不是同一次執行」的關係）
+    later = out["run_id"]
+    out["run_id"] = "RUN-LATER"
+    for c in out["categories"].values():
+        if c["success_run_id"] is not None:
+            c["success_run_id"] = "RUN-LATER" if c["success_run_id"] == later else "RUN-EARLIER"
+    return {"main": main, "supplement": out}
+
+
+def test_a10_cross_end_fixture_is_current(tmp_path):
+    snapshot = build_cross_snapshot(tmp_path)
+    s2 = snapshot["supplement"]["categories"]["s2"]
+    assert s2["state"] == "error" and len(s2["additions"]) == 1 and s2["success_run_id"] == "RUN-EARLIER"
+    assert sup.output_problems(snapshot["supplement"]) == []
+    with open(CROSS_FIXTURE, encoding="utf-8") as f:
+        committed = json.load(f)
+    assert committed == snapshot, "Python 產出變了：重新產生 fixture 並確認前端測試"

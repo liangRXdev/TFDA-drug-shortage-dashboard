@@ -29,6 +29,7 @@ interface SharedCase {
   site: DrugRecord[];
   expected: { error: boolean; additions?: string[]; supersedes?: SupersedeEntry[] };
   display: string[];
+  cleaned: string[];
 }
 interface SharedFixture { normalize: [string, string][]; cases: SharedCase[] }
 
@@ -113,12 +114,22 @@ describe('B1：共用情境（三類皆 ok、同一次執行、新鮮）', () =>
             additions: c.site.filter(r => c.expected.additions!.includes(r.編號)),
             supersedes: c.expected.supersedes!,
           } });
+      const loadBefore = JSON.stringify(load);
       const r1 = applySupplement(main, load, NOW);
       expect(ids(r1.data.datasets[dataset])).toEqual(c.display);
       expect(r1.trusted).toBe(!c.expected.error);
-      // 確定性：相同輸入、相同結果；輸入不被修改
+      // 清洗後（T4）：編號序列等於獨立寫定的期望，且每一列內容就是來源那一列（不是錯配到別列）
+      const cleaned = cleanSupplyData(r1.data).all;
+      expect(ids(cleaned)).toEqual(c.cleaned);
+      const source = new Map([...c.main, ...c.site].map(r => [r.編號, r]));
+      for (const row of cleaned) {
+        expect(row.供應狀態).toBe(source.get(row.編號)!.供應狀態);
+        expect(row.許可證字號).toBe(source.get(row.編號)!.許可證字號);
+      }
+      // 確定性：相同輸入、相同結果；主檔與補抓輸入都不被修改
       expect(applySupplement(main, load, NOW).data).toEqual(r1.data);
       expect(JSON.stringify(main)).toBe(before);
+      expect(JSON.stringify(load)).toBe(loadBefore);
     });
   }
 });
@@ -177,7 +188,10 @@ describe('B3：修訂', () => {
     const b = dsms('1150570', '2026/10/07', '可嗽平錠', '衛署藥製字第040794號', '替代：乙');
     const r = applySupplement(mkMain({ '54504_with_alternative': [a] }),
       mkSup({ s3: { supersedes: [sup(a)], additions: [b] } }), NOW);
-    expect(ids(r.data.datasets['54504_with_alternative'])).toEqual(['dsms-1150570']);
+    const rows = cleanSupplyData(r.data).all;
+    expect(ids(rows)).toEqual(['dsms-1150570']);
+    expect(rows[0].供應狀態).toBe('替代：乙');
+    expect(rows[0]._altText).toBe(cleanSupplyData(mkMain({ '54504_with_alternative': [b] })).all[0]._altText);
   });
 
   it('D10 不成立：A 與 B 並列，紅色文案寫明新舊並列', () => {
@@ -478,6 +492,26 @@ describe('R2／T6：污染的補抓檔經正式入口被拒，缺藥列保留', 
     const lateUtc = Date.parse('2026-10-26T23:30:00Z');   // 台灣 10/27 07:30
     expect(isValidAnnouncementDate('2026/10/28', lateUtc)).toBe(true);
     expect(isValidAnnouncementDate('2026/10/29', lateUtc)).toBe(false);
+  });
+});
+
+describe('A10 跨端：Python 實際產出的「s2 失敗、沿用非空恢復公告」快照', () => {
+  // scripts/fixtures/cross_s2_error_carried.json 由 Python 補抓程式實際產生；
+  // pytest test_a10_cross_end_fixture_is_current 保證它與目前的 Python 產出一致。
+  const CROSS = Object.values(
+    import.meta.glob('../../scripts/fixtures/cross_s2_error_carried.json', { eager: true, import: 'default' }),
+  )[0] as { main: SupplyData; supplement: unknown };
+  const at = Date.parse('2026-10-26T10:30:00+08:00');
+
+  it('通過前端逐筆驗證，但 D10 不成立：不套用恢復公告，V 仍在有替代', async () => {
+    const load = await loadSupplement('x', (async () =>
+      ({ ok: true, status: 200, json: async () => CROSS.supplement }) as Response) as typeof fetch, 30, at);
+    expect(load.status).toBe('ok');
+    const r = applySupplement(CROSS.main, load, at);
+    expect(r.trusted).toBe(false);
+    const visibleRows = cleanSupplyData(r.data).all;
+    expect(visibleRows.map(x => `${x._theme}:${x.中文品名.split('\n')[0]}`)).toEqual(['amber:V藥']);
+    expect(r.warnings.some(w => w.includes('「已恢復」類補抓失敗'))).toBe(true);
   });
 });
 
