@@ -116,16 +116,19 @@ describe('B1：共用情境（三類皆 ok、同一次執行、新鮮）', () =>
           } });
       const loadBefore = JSON.stringify(load);
       const r1 = applySupplement(main, load, NOW);
-      expect(ids(r1.data.datasets[dataset])).toEqual(c.display);
       expect(r1.trusted).toBe(!c.expected.error);
-      // 清洗後（T4）：編號序列等於獨立寫定的期望，且每一列內容就是來源那一列（不是錯配到別列）
-      const cleaned = cleanSupplyData(r1.data).all;
-      expect(ids(cleaned)).toEqual(c.cleaned);
+      // 兩階段都比完整投影（第二輪 T-R3）：期望的編號序列由 fixture 獨立寫定，每一列的
+      // 日期、品名、證號、說明、來源必須就是 fixture 裡該編號的來源列——改壞任何欄位都會失敗
       const source = new Map([...c.main, ...c.site].map(r => [r.編號, r]));
-      for (const row of cleaned) {
-        expect(row.供應狀態).toBe(source.get(row.編號)!.供應狀態);
-        expect(row.許可證字號).toBe(source.get(row.編號)!.許可證字號);
-      }
+      const project = (r: DrugRecord) =>
+        [r.編號, r.公告更新時間, r.中文品名, r.許可證字號, r.供應狀態, r._來源 ?? 'opendata', r._案件編號 ?? null];
+      const expectRows = (rows: DrugRecord[], expectedIds: string[]) =>
+        expect(rows.map(project)).toEqual(expectedIds.map(id => project(source.get(id)!)));
+      expectRows(r1.data.datasets[dataset], c.display);
+      const cleaned = cleanSupplyData(r1.data).all;
+      expectRows(cleaned, c.cleaned);
+      const theme = { s3: 'amber', s4: 'red', s2: 'emerald' }[c.category];
+      expect(cleaned.every(r => r._theme === theme)).toBe(true);
       // 確定性：相同輸入、相同結果；主檔與補抓輸入都不被修改
       expect(applySupplement(main, load, NOW).data).toEqual(r1.data);
       expect(JSON.stringify(main)).toBe(before);
