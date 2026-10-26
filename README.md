@@ -90,8 +90,8 @@ powershell -File scripts/register_supplement_task.ps1
 
 ### 4. Tests
 ```bash
-npm run test                                        # data pipeline + supplement apply (Vitest, 195 cases)
-uv run --with pytest --with requests pytest scripts # ETL / stale detection / supplement / task wrapper (pytest, 234 cases)
+npm run test                                        # data pipeline + supplement apply (Vitest, 207 cases)
+uv run --with pytest --with requests pytest scripts # ETL / stale detection / supplement / task wrapper (pytest, 251 cases)
 ```
 Browser behaviour (supplement banners, offline cache) is covered by `SMOKE_TEST.md`.
 

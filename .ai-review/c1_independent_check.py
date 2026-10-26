@@ -86,8 +86,15 @@ def main():
     supp = json.load(open("public/data/supply_supplement.json", encoding="utf-8"))
     session = requests.Session()
     session.headers["User-Agent"] = "Mozilla/5.0 (C1 independent check)"
+    obs_path = f".ai-review/c1-observations-{start:%Y-%m-%d}.jsonl"
+    obs = open(obs_path, "w", encoding="utf-8", newline="\n")
+    obs.write(json.dumps({"type": "header", "started_at": start.isoformat(timespec="seconds"),
+                          "main_last_updated": main_file["last_updated"], "supplement_run_id": supp["run_id"],
+                          "bases": {k: v.get("base") for k, v in supp["categories"].items()}},
+                         ensure_ascii=False) + "\n")
     print(f"# C1 獨立核對\n\n- 起：{start.isoformat(timespec='seconds')}")
-    print(f"- 主檔 last_updated：{main_file['last_updated']}；補抓檔 run_id：{supp['run_id']}\n")
+    print(f"- 主檔 last_updated：{main_file['last_updated']}；補抓檔 run_id：{supp['run_id']}")
+    print(f"- 逐列觀測：`{obs_path}`（每列一筆網站觀測，含案件編號、日期、品名；s3/s4 另含證號與內容指紋）\n")
     all_ok = True
     for cat, s, dataset, content in CATS:
         url, pages = scan(session, s)
@@ -99,6 +106,11 @@ def main():
                     assert d["case"] == r["case"] and d["newest"] == r["date"], (cat, r["case"])
                     r.update(d)
                 rows.append(r)
+        for r in rows:
+            record = {"type": "row", "category": cat, "case": r["case"], "date": r["date"], "zh": r["zh"]}
+            if content:
+                record.update(license=r["license"], fingerprint=key(r["text"]))
+            obs.write(json.dumps(record, ensure_ascii=False) + "\n")
         excluded = [r for r in rows if content and not r["license"].strip()]
         rows = [r for r in rows if not (content and not r["license"].strip())]
 
@@ -119,7 +131,28 @@ def main():
                           + ((key(a["許可證字號"]), key(a["供應狀態"])) if content else ()) for a in c["additions"])
         got_sup = Counter((e["品名鍵"], e["公告更新時間"]) + ((key(e["許可證字號"]), e["指紋"]) if content else ())
                           for e in c["supersedes"])
-        ok = exp_add == got_add and exp_sup == got_sup \
+        # 案件身分（第二輪 S-R1）：單位一致還不夠——每筆 addition 的案件編號必須就是網站上
+        # 同一單位那一列的案件編號，且 編號 = dsms-<案件編號>；每筆 supersede 必須對到主檔的實際列
+        site_cases = {}
+        for r in rows:
+            site_cases.setdefault(unit_site(r), []).append(r["case"])
+        main_rows = {}
+        for o in main_file["datasets"][dataset]:
+            main_rows.setdefault(unit_main(o), []).append(o["編號"])
+        identity_problems = []
+        for a in c["additions"]:
+            u = (key(a["中文品名"].split("\n")[0]), a["公告更新時間"]) \
+                + ((key(a["許可證字號"]), key(a["供應狀態"])) if content else ())
+            if a["_案件編號"] not in site_cases.get(u, []) or a["編號"] != f"dsms-{a['_案件編號']}":
+                identity_problems.append(f"addition {a['編號']} 的案件編號不是網站上該列（網站：{site_cases.get(u)}）")
+        sup_targets = []
+        for e in c["supersedes"]:
+            u = (e["品名鍵"], e["公告更新時間"]) + ((key(e["許可證字號"]), e["指紋"]) if content else ())
+            targets = main_rows.get(u, [])
+            if not targets:
+                identity_problems.append(f"supersede {e['公告更新時間']} {e['品名鍵']} 對不到主檔任何一列")
+            sup_targets.append((e, targets))
+        ok = exp_add == got_add and exp_sup == got_sup and not identity_problems \
             and sorted(r["case"] for r in excluded) == sorted(e["_案件編號"] for e in c.get("excluded_no_license", []))
         all_ok &= ok
         print(f"## {cat}（{dataset}）：{'一致' if ok else '**不一致**'}\n")
@@ -132,10 +165,17 @@ def main():
             print(f"  - ＋ {u[1]} {u[0]}" + (f" {u[2]}" if content else "") + (f" ×{n}" if n > 1 else ""))
         for u, n in sorted(exp_sup.items()):
             print(f"  - － {u[1]} {u[0]}" + (f" {u[2]}" if content else "") + (f" ×{n}" if n > 1 else ""))
+        for a in c["additions"]:
+            print(f"  - 補抓 addition `{a['編號']}`：案件 {a['_案件編號']} ＝ 網站同單位列的案件編號")
+        for e, targets in sup_targets:
+            print(f"  - 補抓 supersede {e['公告更新時間']} {e['品名鍵']} → 主檔列 編號 {targets}")
+        for p in identity_problems:
+            print(f"  - **案件身分問題**：{p}")
         if not ok:
             print(f"  - 差異：獨立多 {dict(exp_add - got_add)}／{dict(exp_sup - got_sup)}；"
                   f"補抓多 {dict(got_add - exp_add)}／{dict(got_sup - exp_sup)}")
         print()
+    obs.close()
     print(f"- 迄：{datetime.now(TZ).isoformat(timespec='seconds')}")
     print(f"\n**結論：{'C1 通過' if all_ok else 'C1 未通過'}**")
     sys.exit(0 if all_ok else 1)

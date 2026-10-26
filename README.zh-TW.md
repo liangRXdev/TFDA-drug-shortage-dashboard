@@ -90,8 +90,8 @@ powershell -File scripts/register_supplement_task.ps1
 
 ### 4. 測試
 ```bash
-npm run test                                        # 前端資料管線＋補抓套用 (Vitest, 195 案)
-uv run --with pytest --with requests pytest scripts # ETL／停更偵測／補抓／排程包裝 (pytest, 234 案)
+npm run test                                        # 前端資料管線＋補抓套用 (Vitest, 207 案)
+uv run --with pytest --with requests pytest scripts # ETL／停更偵測／補抓／排程包裝 (pytest, 251 案)
 ```
 瀏覽器行為（補抓橫幅、離線快取）見 `SMOKE_TEST.md`。
 
