@@ -514,9 +514,17 @@ def test_a6_cap_boundaries(n_main, n_removed, ok):
 # ----------------------------------------------------------------------
 # A8／A9：主檔不可用、原子寫入
 # ----------------------------------------------------------------------
-@pytest.mark.parametrize("content", [None, "{not json", json.dumps({"datasets": {}}),
-                                     json.dumps({"datasets": {"54504_with_alternative": [],
-                                                              "54505_no_alternative": []}})])
+FULL_DATASETS = {"54504_with_alternative": [], "54505_no_alternative": [], "54506_resolved": []}
+
+
+@pytest.mark.parametrize("content", [
+    None, "{not json", json.dumps({"datasets": {}}),
+    json.dumps({"last_updated": "2026-10-23 04:53:03",
+                "datasets": {"54504_with_alternative": [], "54505_no_alternative": []}}),
+    json.dumps({"datasets": FULL_DATASETS}),                                   # R1：缺 last_updated
+    json.dumps({"last_updated": "2026/10/23", "datasets": FULL_DATASETS}),     # R1：格式錯
+    json.dumps({"last_updated": 20261023, "datasets": FULL_DATASETS}),         # R1：型別錯
+])
 def test_a8_main_unusable_aborts_without_touching_output(tmp_path, content):
     main_path = tmp_path / "supply_status_latest.json"
     if content is not None:

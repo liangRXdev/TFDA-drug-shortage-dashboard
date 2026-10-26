@@ -626,6 +626,12 @@ def load_main(path):
     datasets = main.get("datasets") if isinstance(main, dict) else None
     if not isinstance(datasets, dict):
         raise MainFileError("主檔缺 datasets")
+    # last_updated 是各類 base 的來源；缺漏或格式錯會產出「基準不明」的成功快照（R1）
+    last_updated = main.get("last_updated")
+    try:
+        datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError) as exc:
+        raise MainFileError(f"主檔 last_updated 無效（{last_updated!r}）") from exc
     for spec in CATEGORIES.values():
         rows = datasets.get(spec["dataset"])
         if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):

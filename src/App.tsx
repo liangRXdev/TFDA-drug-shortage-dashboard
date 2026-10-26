@@ -28,6 +28,7 @@ import {
   loadSupplement,
   recordKeys,
   supplementListUrl,
+  trustExpiresAt,
 } from './lib/supplement'
 
 // ----------------------------------------------------------------------
@@ -81,10 +82,33 @@ export default function App() {
       .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
+  // 增量 S（R4）：新鮮度依賴「現在」。藥局工作站分頁常駐數天是常態，
+  // 只在載入時判一次的話，過了 3 天門檻舊公告仍被隱藏、紅色警示不出現。
+  // 在信任到期時刻、切回分頁、視窗取得焦點、以及每 30 分鐘重算一次。
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tick);
+    const interval = setInterval(tick, 30 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tick);
+      clearInterval(interval);
+    };
+  }, []);
+  useEffect(() => {
+    const expires = trustExpiresAt(supplement, now);
+    if (expires === null) return;
+    const t = setTimeout(() => setNow(Date.now()), expires - now + 1000);
+    return () => clearTimeout(t);
+  }, [supplement, now]);
+
   // 增量 S：套用補抓（D10 條件不成立時只新增缺藥、不隱藏任何列）
   const merged = useMemo(
-    () => (data && supplement ? applySupplement(data, supplement) : null),
-    [data, supplement],
+    () => (data && supplement ? applySupplement(data, supplement, now) : null),
+    [data, supplement, now],
   );
 
   // 核心資料管線 Step 1：殭屍清除 + 去重 + meta 掛載（不含篩選）

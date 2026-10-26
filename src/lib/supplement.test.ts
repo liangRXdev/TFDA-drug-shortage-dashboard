@@ -8,6 +8,7 @@ import {
   recordKeys,
   supplementAgeDays,
   supplementListUrl,
+  trustExpiresAt,
   CATEGORY_META,
   type CategoryKey,
   type SupersedeEntry,
@@ -261,6 +262,35 @@ describe('B5：新鮮度（按類別）', () => {
   });
 });
 
+describe('R4：頁面常駐跨過新鮮度門檻', () => {
+  const x = od('O1', '2026/05/07', 'X藥');
+  const main = mkMain({ '54504_with_alternative': [x] });
+  const loadedAt = Date.parse('2026-10-26T09:10:00+08:00');
+  const load = mkSup({ s3: { supersedes: [sup(x)], additions: [dsms('1', '2026/10/16', 'X藥', '衛署藥製字第000001號', '新')] } });
+
+  it('信任到期時刻 = 最早的 last_success_at + 3 天', () => {
+    expect(trustExpiresAt(load, loadedAt)).toBe(loadedAt + 3 * DAY);
+    expect(trustExpiresAt({ status: 'error', reason: 'x' }, loadedAt)).toBeNull();
+    expect(trustExpiresAt(load, loadedAt + 4 * DAY)).toBeNull();   // 已過期 → 不再排程
+  });
+
+  it('同一份資料，到期前隱藏舊版；到期後（不重新載入）改為紅色、舊版重新出現', () => {
+    const before = applySupplement(main, load, loadedAt + 2.9 * DAY);
+    expect(before.trusted).toBe(true);
+    expect(ids(before.data.datasets['54504_with_alternative'])).toEqual(['dsms-1']);
+    const expires = trustExpiresAt(load, loadedAt + 2.9 * DAY)!;
+    const after = applySupplement(main, load, expires + 1000);   // App 在到期後 1 秒重算
+    expect(after.trusted).toBe(false);
+    expect(after.warnings.some(w => w.includes('已 3 天未更新'))).toBe(true);
+    expect(ids(after.data.datasets['54504_with_alternative'])).toEqual(['O1', 'dsms-1']);
+  });
+
+  it('多類別取最早到期者', () => {
+    const mixed = mkSup({ s2: { last_success_at: '2026-10-25T09:10:00+08:00' } });
+    expect(trustExpiresAt(mixed, loadedAt)).toBe(Date.parse('2026-10-25T09:10:00+08:00') + 3 * DAY);
+  });
+});
+
 // ----------------------------------------------------------------------
 describe('B6：補抓檔異常不阻斷主資料', () => {
   const main = mkMain({ '54504_with_alternative': [od('O1', '2026/10/01', '甲藥'), od('O2', '2026/09/01', '乙藥')] });
@@ -351,6 +381,30 @@ describe('B8：隱藏的安全條件（D10）', () => {
       .data.datasets['54504_with_alternative'])).toEqual(['O1', 'O2']);
   });
 
+  it.each<[string, SupplementCategory['base']]>([
+    ['base 為 null', null],
+    ['base.last_updated 為 null', { last_updated: null, upstream_max_date: null }],
+    ['base.last_updated 無法解析', { last_updated: 'bad', upstream_max_date: null }],
+  ])('R1：成功類別的基準版本不明（%s）→ 紅、不隱藏、不加 s2', (_n, base) => {
+    const r = applySupplement(main, mkSup({ ...diff, s4: { base } }), NOW);
+    expect(r.trusted).toBe(false);
+    expect(r.warnings.some(w => w.includes('「無替代」類補抓資料的比對基準版本不明'))).toBe(true);
+    expect(ids(r.data.datasets['54504_with_alternative'])).toContain('O1');
+    expect(ids(r.data.datasets['54506_resolved'])).not.toContain('dsms-2');
+  });
+
+  it('R1：主檔 last_updated 無法解析 → 不可信', () => {
+    const r = applySupplement(mkMain(main.datasets, 'garbage'), mkSup(diff), NOW);
+    expect(r.trusted).toBe(false);
+  });
+
+  it('R1：首次就失敗、沒有任何結果的類別，不重複報「基準不明」', () => {
+    const r = applySupplement(main, mkSup({
+      s4: { state: 'error', error: '壞', last_success_at: null, success_run_id: null, base: null },
+    }), NOW);
+    expect(r.warnings.filter(w => w.includes('「無替代」'))).toEqual(['「無替代」類補抓失敗（壞），沒有可用的補抓結果。']);
+  });
+
   it('主檔品名結構不支援的列永不被隱藏', () => {
     const odd = { ...x, 中文品名: 'X藥' };
     const r = applySupplement(mkMain({ '54504_with_alternative': [odd] }),
@@ -397,5 +451,8 @@ describe('isSupplementData：逐筆驗證', () => {
     ['addition 來源不是 dsms', d => { delete d.categories.s3.additions[0]._來源; }],
     ['supersede 指紋型別錯', d => { d.categories.s3.supersedes = [{ 品名鍵: 'x', 公告更新時間: '2026/01/01', 許可證字號: 'y', 指紋: 1 as unknown as string }]; }],
     ['state 非法', d => { (d.categories.s2 as unknown as { state: string }).state = 'partial'; }],
+    ['base.last_updated 型別錯（R1：原本會讓 parseLastUpdated 拋例外）',
+      d => { (d.categories.s3.base as unknown as { last_updated: number }).last_updated = 123; }],
+    ['base 是字串', d => { (d.categories.s3 as unknown as { base: string }).base = 'x'; }],
   ])('%s → false', (_n, mutate) => expect(isSupplementData(broken(mutate))).toBe(false));
 });

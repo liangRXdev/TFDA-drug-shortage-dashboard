@@ -113,7 +113,13 @@ function isCategory(x: unknown, key: CategoryKey): x is SupplementCategory {
   if (!(c.error === null || isStr(c.error))) return false;
   if (!(c.last_success_at === null || isStr(c.last_success_at))) return false;
   if (!(c.success_run_id === null || isStr(c.success_run_id))) return false;
-  if (c.base !== null && (typeof c.base !== 'object' || !c.base)) return false;
+  // base 的欄位型別必須正確：型別錯（如數字）會讓後續 parseLastUpdated 拋例外（R1）
+  if (c.base !== null) {
+    if (typeof c.base !== 'object' || !c.base) return false;
+    const b = c.base as Record<string, unknown>;
+    if (!(b.last_updated === null || isStr(b.last_updated))) return false;
+    if (!(b.upstream_max_date === null || b.upstream_max_date === undefined || isStr(b.upstream_max_date))) return false;
+  }
   if (!Array.isArray(c.additions) || !c.additions.every(isAddition)) return false;
   if (!Array.isArray(c.supersedes) || !c.supersedes.every(isSupersede)) return false;
   return true;
@@ -172,11 +178,18 @@ export function supplementAgeDays(lastSuccessAt: string | null, now: number): nu
   return Math.max(0, (now - t) / 86400000);
 }
 
-function mainOlderThanBase(main: SupplyData, cat: SupplementCategory): boolean {
+/** 基準版本檢查：'unknown' = 無法確認（fail-closed，R1）；'older' = 主檔比基準舊；'ok'。 */
+function baseStatus(main: SupplyData, cat: SupplementCategory): 'ok' | 'older' | 'unknown' {
   const baseTime = parseLastUpdated(cat.base?.last_updated ?? '');
   const mainTime = parseLastUpdated(main.last_updated);
-  if (baseTime === null) return false;      // 沒有基準（首次失敗）→ 該類本來就沒有可套用的差異
-  return mainTime === null || mainTime < baseTime;
+  if (baseTime === null || mainTime === null) return 'unknown';
+  return mainTime < baseTime ? 'older' : 'ok';
+}
+
+/** 該類是否帶有任何結果（首次就失敗的類別沒有結果、也沒有基準，已由 error 警示涵蓋）。 */
+function hasResults(cat: SupplementCategory): boolean {
+  return cat.state === 'ok' || cat.last_success_at !== null
+    || cat.additions.length > 0 || cat.supersedes.length > 0;
 }
 
 function categoryWarnings(main: SupplyData, sup: SupplementData, key: CategoryKey, now: number): string[] {
@@ -195,10 +208,29 @@ function categoryWarnings(main: SupplyData, sup: SupplementData, key: CategoryKe
   } else if (age > SUPPLEMENT_STALE_DAYS) {
     out.push(`「${label}」類補抓資料已 ${Math.floor(age)} 天未更新。`);
   }
-  if (mainOlderThanBase(main, cat)) {
+  const base = baseStatus(main, cat);
+  if (base === 'older') {
     out.push(`「${label}」類補抓資料比目前載入的主資料新（版本不一致），請重新整理頁面。`);
+  } else if (base === 'unknown' && hasResults(cat)) {
+    out.push(`「${label}」類補抓資料的比對基準版本不明，無法確認與主資料相容。`);
   }
   return out;
+}
+
+/**
+ * 信任何時會因新鮮度到期而失效（R4）：各類 last_success_at + 門檻中最早、且晚於 now 者。
+ * 頁面常駐時，App 在此時刻重算 applySupplement，讓過期警示與停止隱藏如期發生。
+ */
+export function trustExpiresAt(load: SupplementLoad | null, now: number): number | null {
+  if (!load || load.status !== 'ok') return null;
+  let earliest: number | null = null;
+  for (const key of CATEGORY_ORDER) {
+    const t = Date.parse(load.data.categories[key].last_success_at ?? '');
+    if (Number.isNaN(t)) continue;
+    const expires = t + SUPPLEMENT_STALE_DAYS * 86400000;
+    if (expires > now && (earliest === null || expires < earliest)) earliest = expires;
+  }
+  return earliest;
 }
 
 // ----------------------------------------------------------------------
