@@ -88,29 +88,49 @@ export function normalizeKey(value: string | null | undefined): string {
 // ----------------------------------------------------------------------
 const isStr = (v: unknown): v is string => typeof v === 'string';
 
-function isAddition(x: unknown): x is DrugRecord {
+// §6.2 欄位契約的前端版（R2：縱深防禦）。產出端 validate_detail 已驗過；這裡再驗一次，
+// 是因為非法的「已恢復」公告會經由既有 zombie 規則把仍在缺藥的列藏掉。
+// 必須與 scripts/supplement_scraper.py 的 LICENSE_PATTERN／CASE_PATTERN／check_date 一致。
+const LICENSE_PATTERN = /^(衛署|衛部|內衛)\S*字第[A-Z]?\d+號$/;
+const CASE_PATTERN = /^\d+$/;
+const STRICT_DATE = /^\d{4}\/\d{2}\/\d{2}$/;
+const TAIPEI_OFFSET_MS = 8 * 3600 * 1000;
+
+/** YYYY/MM/DD、真實曆日、且不晚於台灣時間今天＋1 天。 */
+export function isValidAnnouncementDate(value: unknown, now: number): boolean {
+  if (!isStr(value) || !STRICT_DATE.test(value) || parseTfdaDate(value) === null) return false;
+  const limit = new Date(now + TAIPEI_OFFSET_MS + 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
+  return value <= limit;
+}
+
+function isAddition(x: unknown, now: number): x is DrugRecord {
   if (!x || typeof x !== 'object') return false;
   const r = x as Record<string, unknown>;
-  return isStr(r.編號) && isStr(r.中文品名) && r.中文品名.trim() !== ''
-    && isStr(r.許可證字號) && r.許可證字號.trim() !== ''
+  return isStr(r._案件編號) && CASE_PATTERN.test(r._案件編號)
+    && r.編號 === `dsms-${r._案件編號}`
+    && isStr(r.中文品名) && r.中文品名.trim() !== ''
+    && isStr(r.許可證字號) && LICENSE_PATTERN.test(r.許可證字號)
     && isStr(r.供應狀態) && r.供應狀態.trim() !== ''
-    && isStr(r.公告更新時間) && parseTfdaDate(r.公告更新時間) !== null
-    && r._來源 === 'dsms' && isStr(r._案件編號);
+    && isValidAnnouncementDate(r.公告更新時間, now)
+    && r._來源 === 'dsms';
 }
 
-function isSupersede(x: unknown): x is SupersedeEntry {
+function isSupersede(x: unknown, key: CategoryKey): x is SupersedeEntry {
   if (!x || typeof x !== 'object') return false;
   const e = x as Record<string, unknown>;
-  return isStr(e.品名鍵) && e.品名鍵 !== '' && isStr(e.公告更新時間) && isStr(e.許可證字號)
-    && (e.指紋 === null || isStr(e.指紋));
+  const fingerprintOk = CATEGORY_META[key].compareContent ? isStr(e.指紋) : e.指紋 === null;
+  return isStr(e.品名鍵) && e.品名鍵 !== ''
+    && isStr(e.公告更新時間) && STRICT_DATE.test(e.公告更新時間) && parseTfdaDate(e.公告更新時間) !== null
+    && isStr(e.許可證字號) && e.許可證字號.trim() !== ''
+    && fingerprintOk;
 }
 
-function isCategory(x: unknown, key: CategoryKey): x is SupplementCategory {
+function isCategory(x: unknown, key: CategoryKey, now: number): x is SupplementCategory {
   if (!x || typeof x !== 'object') return false;
   const c = x as Record<string, unknown>;
   if (c.dataset !== CATEGORY_META[key].dataset) return false;
   if (c.state !== 'ok' && c.state !== 'error') return false;
-  if (!(c.error === null || isStr(c.error))) return false;
+  if ((c.state === 'ok') !== (c.error === null) || !(c.error === null || isStr(c.error))) return false;
   if (!(c.last_success_at === null || isStr(c.last_success_at))) return false;
   if (!(c.success_run_id === null || isStr(c.success_run_id))) return false;
   // base 的欄位型別必須正確：型別錯（如數字）會讓後續 parseLastUpdated 拋例外（R1）
@@ -120,18 +140,22 @@ function isCategory(x: unknown, key: CategoryKey): x is SupplementCategory {
     if (!(b.last_updated === null || isStr(b.last_updated))) return false;
     if (!(b.upstream_max_date === null || b.upstream_max_date === undefined || isStr(b.upstream_max_date))) return false;
   }
-  if (!Array.isArray(c.additions) || !c.additions.every(isAddition)) return false;
-  if (!Array.isArray(c.supersedes) || !c.supersedes.every(isSupersede)) return false;
+  if (!Array.isArray(c.additions) || !c.additions.every(a => isAddition(a, now))) return false;
+  if (!Array.isArray(c.supersedes) || !c.supersedes.every(e => isSupersede(e, key))) return false;
+  // 沒有成功紀錄就不可能有結果（與 Python category_problems 同一契約）
+  if (c.last_success_at === null && (c.state === 'ok' || c.additions.length > 0 || c.supersedes.length > 0)) {
+    return false;
+  }
   return true;
 }
 
-export function isSupplementData(x: unknown): x is SupplementData {
+export function isSupplementData(x: unknown, now: number = Date.now()): x is SupplementData {
   if (!x || typeof x !== 'object') return false;
   const o = x as Record<string, unknown>;
   if (o.schema !== 1 || !isStr(o.run_id) || !isStr(o.generated_at)) return false;
   const cats = o.categories as Record<string, unknown> | undefined;
   if (!cats || typeof cats !== 'object') return false;
-  return CATEGORY_ORDER.every(k => isCategory(cats[k], k));
+  return CATEGORY_ORDER.every(k => isCategory(cats[k], k, now));
 }
 
 /** 載入補抓檔；永不 reject。逾時、非 200、JSON 壞、結構不符都回 error。 */
@@ -139,6 +163,7 @@ export async function loadSupplement(
   url: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = SUPPLEMENT_TIMEOUT_MS,
+  now: number = Date.now(),
 ): Promise<SupplementLoad> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<SupplementLoad>(resolve => {
@@ -154,7 +179,7 @@ export async function loadSupplement(
       } catch {
         return { status: 'error', reason: '回應不是 JSON' };
       }
-      if (!isSupplementData(json)) return { status: 'error', reason: '補抓資料結構不符' };
+      if (!isSupplementData(json, now)) return { status: 'error', reason: '補抓資料結構不符' };
       return { status: 'ok', data: json };
     } catch (e) {
       return { status: 'error', reason: e instanceof Error ? e.message : String(e) };

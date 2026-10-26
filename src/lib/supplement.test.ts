@@ -3,6 +3,7 @@ import { cleanSupplyData, type DrugRecord, type SupplyData } from './dataPipelin
 import {
   applySupplement,
   isSupplementData,
+  isValidAnnouncementDate,
   loadSupplement,
   normalizeKey,
   recordKeys,
@@ -432,6 +433,51 @@ describe('B9：卡片身分', () => {
 
   it('內容改變 → key 改變（展開狀態不會轉移到另一列）', () => {
     expect(recordKeys([{ ...a, 供應狀態: '更正後' }])[0]).not.toBe(recordKeys([a])[0]);
+  });
+});
+
+describe('R2／T6：污染的補抓檔經正式入口被拒，缺藥列保留', () => {
+  // Codex 重現的攻擊路徑：把主檔一筆缺藥偽造成 s2 恢復公告（未來日期、非法案件編號、錯誤編號），
+  // 原本會通過驗證，經既有 zombie 規則把缺藥列藏掉。
+  const shortage = od('O1', '2026/10/01', 'X藥', '衛署藥輸字第000900號', '缺藥中');
+  const main = mkMain({ '54504_with_alternative': [shortage] });
+  const fake = (patch: Partial<DrugRecord> & Record<string, unknown>) =>
+    ({ ...dsms('1150900', '2026/10/20', 'X藥', '衛署藥輸字第000900號', '已恢復'), ...patch }) as DrugRecord;
+  const res = (body: unknown) => (async () => ({ ok: true, status: 200, json: async () => body }) as Response) as typeof fetch;
+  const fileWith = (cats: Partial<Record<CategoryKey, Partial<SupplementCategory>>>) =>
+    (mkSup(cats) as { data: SupplementData }).data;
+
+  it.each<[string, SupplementData]>([
+    ['未來日期 2099/01/01', fileWith({ s2: { additions: [fake({ 公告更新時間: '2099/01/01' })] } })],
+    ['明天之後（台灣時間 +2 天）', fileWith({ s2: { additions: [fake({ 公告更新時間: '2026/10/28' })] } })],
+    ['日期格式 YYYY/M', fileWith({ s2: { additions: [fake({ 公告更新時間: '2026/10' })] } })],
+    ['案件編號非數字', fileWith({ s2: { additions: [fake({ _案件編號: 'not-a-number', 編號: 'dsms-not-a-number' })] } })],
+    ['編號與案件編號不對應', fileWith({ s2: { additions: [fake({ 編號: 'wrong-id' })] } })],
+    ['證號格式錯', fileWith({ s2: { additions: [fake({ 許可證字號: '藥字第1號' })] } })],
+    ['supersede 日期格式錯', fileWith({ s3: { supersedes: [{ ...sup(shortage), 公告更新時間: '2026/10/1' }] } })],
+    ['s3 supersede 沒有指紋', fileWith({ s3: { supersedes: [{ ...sup(shortage), 指紋: null }] } })],
+    ['s2 supersede 帶指紋', fileWith({ s2: { supersedes: [{ ...sup(shortage, false), 指紋: 'x' }] } })],
+    ['state ok 卻有 error 訊息', fileWith({ s2: { error: '其實失敗了' } })],
+    ['沒有成功紀錄卻帶有結果', fileWith({ s2: { state: 'error', error: 'x', last_success_at: null,
+      success_run_id: null, base: null, additions: [fake({})] } })],
+  ])('%s → 整份拒收、紅色、缺藥列仍在', async (_n, file) => {
+    const load = await loadSupplement('x', res(file), 30, NOW);
+    expect(load.status).toBe('error');
+    const r = applySupplement(main, load, NOW);
+    expect(visible(r.data)).toEqual(['amber:O1']);
+    expect(r.warnings[0]).toContain('無法載入公告頁補抓資料');
+  });
+
+  it('對照組：合法的恢復公告經入口通過，且依既有規則生效', async () => {
+    const load = await loadSupplement('x', res(fileWith({ s2: { additions: [fake({})] } })), 30, NOW);
+    expect(load.status).toBe('ok');
+    expect(visible(applySupplement(main, load, NOW).data)).toEqual(['emerald:dsms-1150900']);
+  });
+
+  it('台灣時間的「明天」上限：UTC 已過午夜也以台灣日期計', () => {
+    const lateUtc = Date.parse('2026-10-26T23:30:00Z');   // 台灣 10/27 07:30
+    expect(isValidAnnouncementDate('2026/10/28', lateUtc)).toBe(true);
+    expect(isValidAnnouncementDate('2026/10/29', lateUtc)).toBe(false);
   });
 });
 
