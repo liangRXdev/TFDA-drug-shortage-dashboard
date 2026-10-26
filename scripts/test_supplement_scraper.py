@@ -316,8 +316,30 @@ def test_empty_license_rows_reported_and_not_added(tmp_path):
 
 def test_a1_same_day_identical_rows_are_one_version():
     detail = sup.parse_detail(detail_html("1150570", "測試藥", "TEST", "衛署藥製字第000001號",
-                                          [("2026/10/07", "同內容"), ("2026/10/07", "同 內容")]))
+                                          [("2026/10/07", "同內容"), ("2026/10/07", "同內容")]))
     assert sup.validate_detail(detail, ROW, "s3", TODAY)["供應狀態"] == "同內容"
+
+
+def test_r5_same_day_rows_differing_only_in_line_breaks_conflict():
+    """R5：規格要求「內容完全相同」；`藥A\\n藥B` 與 `藥A藥B` 正規化後相同，但不是同一版。"""
+    detail = sup.parse_detail(detail_html("1150570", "測試藥", "TEST", "衛署藥製字第000001號",
+                                          [("2026/10/07", "◎藥A\n◎藥B"), ("2026/10/07", "◎藥A◎藥B")]))
+    with pytest.raises(sup.ScrapeError, match="同日期"):
+        sup.validate_detail(detail, ROW, "s3", TODAY)
+
+
+@pytest.mark.parametrize("inner,expected", [
+    ("1.甲。\n<br/>2.乙。", "1.甲。\r\n2.乙。"),           # 現行寫法：原始換行＋<br/> 只算一次
+    ("1.甲。<br/>2.乙。", "1.甲。\r\n2.乙。"),             # 只有 <br>：也要換行，不得黏在一起
+    ("1.甲。\r\n<br/>2.乙。", "1.甲。\r\n2.乙。"),
+    ("1.甲。\n<br/>\n<br/>2.乙。", "1.甲。\r\n\r\n2.乙。"),  # 空行保留
+    ("  1.甲。   \n<br/>2.乙。  ", "1.甲。   \r\n2.乙。"),   # 只去整段頭尾空白，行尾不動
+])
+def test_r5_br_handling_and_outer_strip_only(inner, expected):
+    html = detail_html("1150570", "測試藥", "TEST", "衛署藥製字第000001號", [("2026/10/07", "PLACEHOLDER")])
+    html = html.replace("PLACEHOLDER", inner)   # 直接放 HTML，不經 esc
+    detail = sup.parse_detail(html)
+    assert sup.validate_detail(detail, ROW, "s3", TODAY)["供應狀態"] == expected
 
 
 def test_a4_future_date_rejected_but_tomorrow_allowed():
@@ -336,6 +358,82 @@ def test_radiopharm_license_format_accepted():
     assert sup.LICENSE_PATTERN.match("衛署藥輸字第R00049號")
     assert sup.LICENSE_PATTERN.match("內衛藥製字第004928號")
     assert sup.LICENSE_PATTERN.match("衛部罕菌疫輸字第000001號")
+
+
+# ----------------------------------------------------------------------
+# R7：真正的 DsmsClient（假 session，不連網）
+# ----------------------------------------------------------------------
+class FakeResponse:
+    def __init__(self, status, url, body="<html>ok</html>"):
+        self.status_code = status
+        self.url = url
+        self.content = body.encode("utf-8")
+
+
+class FakeSession:
+    def __init__(self, response):
+        self.response = response
+        self.headers = {}
+        self.calls = []
+
+    def get(self, url, **kw):
+        self.calls.append(("get", url, kw))
+        return self.response
+
+    def post(self, url, **kw):
+        self.calls.append(("post", url, kw))
+        return self.response
+
+
+def client_with(response):
+    return sup.DsmsClient(session=FakeSession(response), sleep=lambda _s: None)
+
+
+LIST_OK = "https://dsms.fda.gov.tw/DrugList.aspx?s=3"
+DETAIL_OK = "https://dsms.fda.gov.tw/DrugInfo.aspx?No=abc%3d&s=3&from=DrugList&r=1"
+
+
+def test_r7_client_accepts_200_on_expected_pages():
+    assert client_with(FakeResponse(200, LIST_OK)).get_list("s3") == "<html>ok</html>"
+    assert client_with(FakeResponse(200, DETAIL_OK)).open_detail("s3", {"__VIEWSTATE": "v"}, "t")
+
+
+@pytest.mark.parametrize("status,url,why", [
+    (206, LIST_OK, "非 200 的 2xx"),
+    (500, LIST_OK, "伺服器錯誤"),
+    (200, "http://dsms.fda.gov.tw/DrugList.aspx?s=3", "降為 http"),
+    (200, "https://evil.example/DrugList.aspx?s=3", "跳到別的主機"),
+    (200, "https://dsms.fda.gov.tw:443/?r=1484819271", "跳回首頁（s=1 實測行為）"),
+    (200, "https://dsms.fda.gov.tw/DrugList.aspx?s=2", "類別錯置"),
+    (200, "https://dsms.fda.gov.tw/DrugInfo.aspx?s=3", "列表請求卻落在詳情頁"),
+])
+def test_r7_client_rejects_unexpected_responses(status, url, why):
+    with pytest.raises(sup.ScrapeError):
+        client_with(FakeResponse(status, url)).get_list("s3")
+
+
+def test_r7_client_rejects_non_utf8_and_network_errors():
+    bad = FakeResponse(200, LIST_OK)
+    bad.content = b"\xff\xfe\xfa"
+    with pytest.raises(sup.ScrapeError, match="請求失敗"):
+        client_with(bad).get_list("s3")
+
+    class Boom(FakeSession):
+        def get(self, url, **kw):
+            raise sup.requests.ConnectionError("TLS handshake failed")
+    with pytest.raises(sup.ScrapeError, match="TLS"):
+        sup.DsmsClient(session=Boom(None), sleep=lambda _s: None).get_list("s3")
+
+
+def test_r7_client_postback_sends_hidden_fields_and_waits():
+    waits = []
+    session = FakeSession(FakeResponse(200, LIST_OK))
+    sup.DsmsClient(session=session, sleep=waits.append).postback("s3", {"__VIEWSTATE": "v"},
+                                                                  sup.GRID_TARGET, "Page$2")
+    method, url, kw = session.calls[0]
+    assert method == "post" and url == LIST_OK
+    assert kw["data"] == {"__VIEWSTATE": "v", "__EVENTTARGET": sup.GRID_TARGET, "__EVENTARGUMENT": "Page$2"}
+    assert kw["timeout"] == sup.REQUEST_TIMEOUT and waits == [sup.REQUEST_INTERVAL]
 
 
 # ----------------------------------------------------------------------
@@ -443,6 +541,24 @@ def test_a3_one_broken_row_fails_category_only(tmp_path):
 def test_a5_not_a_legit_empty_state(html):
     with pytest.raises(sup.ScrapeError):
         sup.parse_list_page(html, "s4")
+
+
+@pytest.mark.parametrize("text", ["系統維護中", "資料讀取失敗", "", "尚無資料（維護中）"])
+def test_r6_empty_node_with_other_text_is_error(text):
+    html = list_html("s4", [], empty=True).replace(">尚無資料<", f">{text}<")
+    with pytest.raises(sup.ScrapeError, match="尚無資料"):
+        sup.parse_list_page(html, "s4")
+
+
+def test_r6_maintenance_text_does_not_hide_main_rows(tmp_path):
+    """R6 流程級：空狀態被改成維護訊息時，主檔只有 2 筆（低於熔斷上限）也不得被隱藏。"""
+    rows = [opendata_row(str(i), "2026/09/01", f"無替代藥{i}") for i in range(2)]
+    main_path = main_file(tmp_path, {"54505_no_alternative": rows})
+    site = FakeSite({"s3": [], "s4": [], "s2": []})
+    site.overrides[("s4", 1)] = list_html("s4", [], empty=True).replace(">尚無資料<", ">系統維護中<")
+    code, out = run_once(tmp_path, site, main_path)
+    s4 = out["categories"]["s4"]
+    assert code == 2 and s4["state"] == "error" and s4["supersedes"] == []
 
 
 def test_a5_empty_state_with_rows_is_error():
@@ -628,6 +744,66 @@ def test_a10_first_run_failure_has_no_results(tmp_path):
     s2 = out["categories"]["s2"]
     assert s2["state"] == "error" and s2["additions"] == [] and s2["supersedes"] == []
     assert s2["last_success_at"] is None and s2["base"] is None
+
+
+def _valid_previous(tmp_path):
+    """先跑一次成功，取得合法前檔（s2 有一筆 addition）。"""
+    main_path = main_file(tmp_path)
+    site = FakeSite({"s3": [], "s4": [], "s2": [drug("1150700", "2026/10/20", "新恢復藥",
+                                                     license_no="衛部藥輸字第000061號")]})
+    _, out = run_once(tmp_path, site, main_path)
+    return main_path, out
+
+
+@pytest.mark.parametrize("corrupt", [
+    lambda d: d["categories"]["s2"]["additions"].append(None),
+    lambda d: d["categories"]["s2"]["additions"][0].update(公告更新時間="2099/13/01"),
+    lambda d: d["categories"]["s2"]["additions"][0].update(編號="wrong-id"),
+    lambda d: d["categories"]["s2"]["additions"][0].update(_案件編號="not-a-number"),
+    lambda d: d["categories"]["s2"]["additions"][0].update(許可證字號="藥字第1號"),
+    lambda d: d["categories"]["s2"].update(base=None),
+    lambda d: d["categories"]["s2"].update(dataset="54504_with_alternative"),
+    lambda d: d["categories"]["s3"]["supersedes"].append({"品名鍵": "x", "公告更新時間": "2026/01/01",
+                                                         "許可證字號": "y", "指紋": None}),
+    lambda d: d["categories"].pop("s4"),
+], ids=["null 筆", "日期無效", "編號不對應", "案件編號非數字", "證號格式錯", "缺 base",
+        "dataset 錯置", "s3 指紋為 null", "缺類別"])
+def test_r3_parseable_but_invalid_previous_is_discarded(tmp_path, corrupt):
+    main_path, good = _valid_previous(tmp_path)
+    corrupt(good)
+    (tmp_path / "supply_supplement.json").write_text(json.dumps(good, ensure_ascii=False), encoding="utf-8")
+    site = FakeSite({"s3": [drug("1150671", "2026/10/21", "新缺藥")], "s4": [], "s2": []})
+    site.overrides[("s2", 1)] = "<html></html>"   # s2 本次失敗 → 若沿用就會沿用到損壞內容
+    code, out = run_once(tmp_path, site, main_path)
+    s2 = out["categories"]["s2"]
+    assert s2["state"] == "error" and s2["additions"] == [] and s2["last_success_at"] is None
+    # D4 故障隔離：s3 本次的新缺藥照常發布，整份輸出仍合法
+    assert [a["_案件編號"] for a in out["categories"]["s3"]["additions"]] == ["1150671"]
+    assert sup.output_problems(out) == []
+
+
+def test_r3_valid_previous_is_carried_over_completely(tmp_path):
+    """A3／A10 補強：沿用時 base、success_run_id、supersedes 等全部欄位等於前檔。"""
+    main_path, good = _valid_previous(tmp_path)
+    site = FakeSite({"s3": [], "s4": [], "s2": []})
+    site.overrides[("s2", 1)] = "<html></html>"
+    later = datetime(2026, 10, 27, 9, 10, tzinfo=sup.TAIPEI_TZ)
+    _, out = run_once(tmp_path, site, main_path, now=later)
+    s2, prev = out["categories"]["s2"], good["categories"]["s2"]
+    for key in ("last_success_at", "success_run_id", "base", "scanned", "additions", "supersedes",
+                "excluded_no_license"):
+        assert s2[key] == prev[key], key
+
+
+def test_r3_invalid_output_is_never_written(tmp_path, monkeypatch):
+    main_path = main_file(tmp_path)
+    out = tmp_path / "supply_supplement.json"
+    out.write_bytes(b"OLD")
+    monkeypatch.setattr(sup, "build_output", lambda *a, **k: {"schema": 1})
+    with pytest.raises(RuntimeError, match="契約"):
+        sup.run(main_path=main_path, output_path=str(out),
+                client=FakeClient(FakeSite({"s3": [], "s4": [], "s2": []})), now=NOW)
+    assert out.read_bytes() == b"OLD"
 
 
 def test_a10_corrupt_previous_treated_as_first_run(tmp_path):

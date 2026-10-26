@@ -39,7 +39,8 @@ import requests
 
 TAIPEI_TZ = timezone(timedelta(hours=8))
 
-BASE_URL = "https://dsms.fda.gov.tw/DrugList.aspx"
+DSMS_HOST = "dsms.fda.gov.tw"
+BASE_URL = f"https://{DSMS_HOST}/DrugList.aspx"
 CATEGORIES = {
     "s3": {"s": 3, "dataset": "54504_with_alternative",
            "title": "建議使用替代藥品或其他建議", "compare_content": True},
@@ -181,11 +182,19 @@ def find_by_id(node, element_id):
     return next((n for n in iter_nodes(node) if n.attrs.get("id") == element_id), None)
 
 
-def text_of(node):
-    """節點內全部文字；`<br>` 不轉換（dsms 的 `<br/>` 前已有原始換行）。"""
+BR_MARK = "\x00BR\x00"   # display_text 會把它轉成換行；只在詳情內文使用
+
+
+def text_of(node, br=""):
+    """節點內全部文字；`<br>` 以 br 取代（預設忽略，詳情內文傳 BR_MARK）。"""
     parts = []
     for child in node.children:
-        parts.append(child if isinstance(child, str) else text_of(child))
+        if isinstance(child, str):
+            parts.append(child)
+        elif child.tag == "br":
+            parts.append(br)
+        else:
+            parts.append(text_of(child, br))
     return "".join(parts)
 
 
@@ -292,7 +301,11 @@ def parse_list_page(text, category):
     grid = find_by_id(root, GRID_ID)
     if grid is None:
         raise ScrapeError(f"{category}：找不到列表（疑似改版）")
-    empty = find_by_id(grid, GRID_ID + "_lbEmpty") is not None
+    empty_nodes = [n for n in iter_nodes(grid) if n.attrs.get("id") == GRID_ID + "_lbEmpty"]
+    # R6：只認節點不夠——若改成「系統維護中」，會被當成 L＝∅ 而隱藏全部主檔列
+    if len(empty_nodes) > 1 or (empty_nodes and text_of(empty_nodes[0]).strip() != "尚無資料"):
+        raise ScrapeError(f"{category}：空狀態節點內容不是「尚無資料」（疑似維護或改版）")
+    empty = bool(empty_nodes)
     rows, pager = [], None
     for tr in _grid_rows(grid):
         cls = tr.attrs.get("class", "")
@@ -351,7 +364,7 @@ def parse_detail(text):
             break
         history.append({
             "reason": _span(root, f"grvPublishList_lblPublishShortageCause_{i}"),
-            "text": text_of(content),
+            "text": text_of(content, br=BR_MARK),
             "date": _span(root, f"grvPublishList_lblPublishUpdateTime_{i}"),
         })
         i += 1
@@ -364,10 +377,18 @@ def parse_detail(text):
     }
 
 
+_BR_AFTER_NEWLINE = re.compile("\n[ \t]*" + re.escape(BR_MARK))
+
+
 def display_text(raw):
-    """評估結果說明 → 顯示用文字：統一 CRLF（與 opendata 一致），只去頭尾空白。"""
-    lines = (raw or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    return "\r\n".join(line.rstrip() for line in lines).strip()
+    """評估結果說明 → 顯示用文字：`<br>` 轉換行、統一 CRLF（與 opendata 一致），只去整段頭尾空白。
+
+    dsms 現行寫法是「原始換行＋`<br/>`」，兩者合計只算一個換行；只有 `<br>` 沒有原始換行時
+    也要換行（R5：原本忽略 `<br>`，替代藥清單會黏在一起）。
+    """
+    text = (raw or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = _BR_AFTER_NEWLINE.sub("\n", text).replace(BR_MARK, "\n")
+    return text.strip().replace("\n", "\r\n")
 
 
 def latest_history(detail, row, category, today):
@@ -382,7 +403,8 @@ def latest_history(detail, row, category, today):
         raise ScrapeError(f"{category} {row.case_no}：詳情最新日期 {newest} ≠ 列表日期 {row.date}"
                           "（列表抓完後網站已更新？）")
     same_day = [h for h in history if h["date"] == newest]
-    if len({norm(h["text"]) for h in same_day}) != 1:
+    # R5：規格要求「內容完全相同」；用 norm 比較會把換行不同的兩版當成相同
+    if len({display_text(h["text"]) for h in same_day}) != 1:
         raise ScrapeError(f"{category} {row.case_no}：同日期有多列且內容不同，無法判定有效版本")
     text = display_text(same_day[0]["text"])
     if not text:
@@ -437,14 +459,18 @@ class DsmsClient:
         self.sleep(self.interval)
         try:
             r = getattr(self.session, method)(url, timeout=REQUEST_TIMEOUT, **kwargs)
-            r.raise_for_status()
             text = r.content.decode("utf-8")
         except (requests.RequestException, UnicodeDecodeError) as exc:
             raise ScrapeError(f"{category}：請求失敗（{exc}）") from exc
+        # R7：只接受 200（raise_for_status 會放過 206 等其他 2xx）
+        if r.status_code != 200:
+            raise ScrapeError(f"{category}：HTTP {r.status_code}")
         final = urlparse(r.url)
         s_values = parse_qs(final.query).get("s", [])
-        if final.path.lower() != expect_path or s_values != [str(CATEGORIES[category]["s"])]:
-            raise ScrapeError(f"{category}：跳轉到非預期頁 {final.path}?{final.query}")
+        if (final.scheme != "https" or final.hostname != DSMS_HOST
+                or final.path.lower() != expect_path
+                or s_values != [str(CATEGORIES[category]["s"])]):
+            raise ScrapeError(f"{category}：跳轉到非預期頁 {final.scheme}://{final.hostname}{final.path}?{final.query}")
         return text
 
     def get_list(self, category):
@@ -643,17 +669,98 @@ def load_main(path):
     return main
 
 
-def _valid_previous_category(cat):
-    if not isinstance(cat, dict):
+def _is_iso(value):
+    try:
+        datetime.fromisoformat(value)
+        return True
+    except (TypeError, ValueError):
         return False
-    return (isinstance(cat.get("additions"), list) and isinstance(cat.get("supersedes"), list)
-            and isinstance(cat.get("last_success_at"), str)
-            and isinstance(cat.get("success_run_id"), str)
-            and isinstance(cat.get("base"), dict))
+
+
+def _is_main_timestamp(value):
+    try:
+        datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _addition_problems(r, category):
+    """已存檔的 addition 是否符合 §6.2（與 validate_detail 的產出同一契約）。"""
+    if not isinstance(r, dict):
+        return ["addition 不是物件"]
+    case = r.get("_案件編號")
+    checks = [
+        (isinstance(case, str) and CASE_PATTERN.match(case), "案件編號無效"),
+        (r.get("編號") == f"dsms-{case}", "編號與案件編號不對應"),
+        (parse_date(r.get("公告更新時間")) is not None, "日期無效"),
+        (isinstance(r.get("中文品名"), str) and r["中文品名"].strip(), "中文品名為空"),
+        (isinstance(r.get("許可證字號"), str) and LICENSE_PATTERN.match(r["許可證字號"]), "證號無效"),
+        (isinstance(r.get("供應狀態"), str) and r["供應狀態"].strip(), "供應狀態為空"),
+        (r.get("_來源") == "dsms", "來源不是 dsms"),
+    ]
+    return [f"{category} addition {case!r}：{msg}" for ok, msg in checks if not ok]
+
+
+def _supersede_problems(e, category):
+    if not isinstance(e, dict):
+        return [f"{category} supersede 不是物件"]
+    fingerprint_ok = (isinstance(e.get("指紋"), str) if CATEGORIES[category]["compare_content"]
+                      else e.get("指紋") is None)
+    checks = [
+        (isinstance(e.get("品名鍵"), str) and e["品名鍵"], "品名鍵為空"),
+        (parse_date(e.get("公告更新時間")) is not None, "日期無效"),
+        (isinstance(e.get("許可證字號"), str) and e["許可證字號"].strip(), "證號為空"),
+        (fingerprint_ok, "指紋型別與類別不符"),
+    ]
+    return [f"{category} supersede：{msg}" for ok, msg in checks if not ok]
+
+
+def category_problems(cat, category):
+    """單類輸出契約（§6.1）；回傳問題清單，空清單代表合法。"""
+    if not isinstance(cat, dict):
+        return [f"{category}：不是物件"]
+    problems = []
+    if cat.get("dataset") != CATEGORIES[category]["dataset"]:
+        problems.append(f"{category}：dataset 不符")
+    state = cat.get("state")
+    if state not in ("ok", "error") or (state == "ok") != (cat.get("error") is None):
+        problems.append(f"{category}：state／error 不一致")
+    lists = [cat.get(k) for k in ("additions", "supersedes", "excluded_no_license")]
+    if not all(isinstance(x, list) for x in lists):
+        return problems + [f"{category}：additions／supersedes／excluded_no_license 不是陣列"]
+    if cat.get("last_success_at") is None:
+        if state == "ok" or cat.get("base") is not None or lists[0] or lists[1]:
+            problems.append(f"{category}：沒有成功紀錄卻帶有結果或基準")
+        return problems
+    base = cat.get("base")
+    if not (_is_iso(cat["last_success_at"]) and isinstance(cat.get("success_run_id"), str)
+            and isinstance(base, dict) and _is_main_timestamp(base.get("last_updated"))):
+        problems.append(f"{category}：成功紀錄的時間、run_id 或基準無效")
+    for r in lists[0]:
+        problems += _addition_problems(r, category)
+    for e in lists[1]:
+        problems += _supersede_problems(e, category)
+    return problems
+
+
+def output_problems(payload):
+    """整份補抓檔的契約；讀前檔與寫檔前都用這一套（R3）。"""
+    if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
+        return ["schema 不符"]
+    if not isinstance(payload.get("run_id"), str) or not isinstance(payload.get("generated_at"), str):
+        return ["缺 run_id 或 generated_at"]
+    categories = payload.get("categories")
+    if not isinstance(categories, dict) or set(categories) != set(SCAN_ORDER):
+        return ["categories 不是 s2／s3／s4"]
+    return [p for c in SCAN_ORDER for p in category_problems(categories[c], c)]
 
 
 def load_previous(path):
-    """前檔：不存在或損壞 → None（視同首次，不沿用任何舊結果）。"""
+    """前檔：不存在、無法解析、或任何一處違反輸出契約 → None（視同首次，不沿用任何舊結果）。
+
+    整份丟棄而非逐類挑選：損壞代表產出端或檔案本身出了問題，部分沿用無法保證正確（§6.3）。
+    """
     if not os.path.exists(path):
         return None
     try:
@@ -662,9 +769,9 @@ def load_previous(path):
     except (OSError, json.JSONDecodeError) as exc:
         print(f"⚠️ 前檔 {path} 無法讀取，視同首次執行：{exc}")
         return None
-    if not isinstance(previous, dict) or previous.get("schema") != SCHEMA \
-            or not isinstance(previous.get("categories"), dict):
-        print(f"⚠️ 前檔 {path} schema 不符，視同首次執行")
+    problems = output_problems(previous)
+    if problems:
+        print(f"⚠️ 前檔 {path} 違反輸出契約，視同首次執行：{problems[:3]}")
         return None
     return previous
 
@@ -672,7 +779,7 @@ def load_previous(path):
 def carried_over(previous, category):
     """失敗類別沿用前檔該類的上次成功結果；沒有可用結果 → 空結果（D4）。"""
     cat = (previous or {}).get("categories", {}).get(category)
-    if _valid_previous_category(cat):
+    if cat and cat.get("last_success_at") is not None:
         carried = {k: cat.get(k) for k in
                    ("last_success_at", "success_run_id", "base", "scanned", "additions", "supersedes")}
         carried["excluded_no_license"] = cat.get("excluded_no_license") or []
@@ -735,6 +842,10 @@ def run(main_path=MAIN_PATH, output_path=OUTPUT_PATH, client=None, now=None):
             outcomes[category] = exc
 
     payload = build_output(outcomes, previous, main, now, run_id)
+    problems = output_problems(payload)
+    if problems:
+        # 產出端 bug：寧可不寫檔（前端會因過期亮紅），也不發布違反契約的檔案
+        raise RuntimeError(f"輸出違反契約，未寫檔：{problems[:5]}")
     write_atomic(output_path, payload)
     for category in SCAN_ORDER:
         c = payload["categories"][category]
