@@ -1,0 +1,436 @@
+
+
+<!DOCTYPE html>
+
+<html>
+<head><meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="description" /><meta name="author" /><meta http-equiv="Expires" content="0" /><meta http-equiv="Cache-Control" content="no-cache, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta name="robots" content="noindex, nofollow" />
+  
+  
+  
+  <script>if (top.frames.length != 0) top.location = encodeURI(self.location); </script>
+
+  <title>
+西藥醫療器材供應資訊平台
+</title><link href="Content/bootstrap/css/bootstrap.css" rel="stylesheet" /><link href="Content/css/Site.css?20251201" rel="stylesheet" /><link href="Content/css/justified-nav.css" rel="stylesheet" /><link id="linkThemeStyle" href="Content/css/ThemeStyle/Style1.css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><link rel="apple-touch-icon" sizes="57x57" href="favicon/apple-icon-57x57.png" /><link rel="apple-touch-icon" sizes="60x60" href="favicon/apple-icon-60x60.png" /><link rel="apple-touch-icon" sizes="72x72" href="favicon/apple-icon-72x72.png" /><link rel="apple-touch-icon" sizes="76x76" href="favicon/apple-icon-76x76.png" /><link rel="apple-touch-icon" sizes="114x114" href="favicon/apple-icon-114x114.png" /><link rel="apple-touch-icon" sizes="120x120" href="favicon/apple-icon-120x120.png" /><link rel="apple-touch-icon" sizes="144x144" href="favicon/apple-icon-144x144.png" /><link rel="apple-touch-icon" sizes="152x152" href="favicon/apple-icon-152x152.png" /><link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-icon-180x180.png" /><link rel="icon" type="image/png" sizes="192x192" href="favicon/android-icon-192x192.png" /><link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png" /><link rel="icon" type="image/png" sizes="96x96" href="favicon/favicon-96x96.png" /><link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png" /><link rel="manifest" href="favicon/manifest.json" /><meta name="msapplication-TileColor" content="#ffffff" /><meta name="msapplication-TileImage" content="~/favicon/ms-icon-144x144.png" /><meta name="theme-color" content="#ffffff" />
+  
+
+  <script src="/Scripts/jquery-3.7.1.min.js"></script>
+  <script src="/Content/bootstrap-4.4.1-dist/js/bootstrap.min.js"></script>
+
+  
+  <style type="text/css">
+    .grvHeader {
+      color: #fff;
+      background-color: #337ab7;
+      border-color: #337ab7;
+      padding: 10px 15px;
+      height: 41px;
+    }
+
+      .grvHeader th:first-child {
+        border-top-left-radius: 4px;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+
+      .grvHeader th:last-child {
+        border-top-right-radius: 4px;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+
+    .searchwidth2 {
+      width: 393px;
+    }
+  </style>
+</head>
+<body class="body">
+  <form method="post" action="./DrugList.aspx?s=3" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['form1'];
+if (!theForm) {
+    theForm = document.form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="99C7500E" />
+	<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="nulNjOxF3LD08/f/vfNbnAJbDSoF5kwMnnXz3w9pvmFex0/I6jpC7zo3e+tnd0RNlfa8yIC3NUsnAVFEhZkUJQTs6S0gR1JlMCn0FFll8lIc7Un0KayXF43OZ5IrAQHiPQzb6fVbYVfV9qobkqroR5ogrFsPiTvH+Bc5PaMldaJOIEv629F2A1K/xYDALsRAjxZxutNTedf3AbpQeShig1uBD4M1VE2qOvs7qEMBne9g7yRWhrwPaIxhc5JUw+yddvnY+dVJ2eHlMdAfAaGiKzUS+5Ejea4Wq4YZAfKoWoRP7A966Ju3Xy84bbksxPRShQIQ1gf4w3AZVDI47pocJyjbLR4dgSbtlRF0pxwHDJ/ednuGRolGP8QoRp8p2IrmG+v6R9Ug3s4y7aQooGGCccYdcyXYleJO3I+d6yFvkgOhdtnmAy5sCCmIG2zlm8whR2jYTFcCddoHFQ++rd3jroCATQpd1wK9sAXARjLP0S/uxz/5PQnSZHSVxd+0qoYCOplYSPy7oRed1xXNJbFPNQQSwVAOUmIanwd9KGhtFKkLoxFaEbR089rxWRUAyhS0Z3wJznU11r50neq8XD5Blm0rfdvYAl9BHSOXsPxzBN2TeZo9veOjoYi1BpP47u6iwJ1Dib8uG8xoraih7JA33A+k9hyCGBmVT1E6ljfm/0a2oqzEvrPZnsbHGen7tgJpdhhzHnA8dwTWi8ys317oT5xBaH1K0yYTOlMP+5pyUfEQCegzkRbSJHOSlGYazzuC3SoBqi80OAZn+zzmZ1Pwlv4ILDYrhwyyioGkDMnOqwZhhnkO63AWaMGaGmiD10QsmDtXVPLpbC0XiH9btRFXmAkNACLe9RvxGAILjiWe2Ek+eOewzvmQ3EUiorAoi6dBaQfZaNtRoVKqqmiodclWslCX63QIGPMPtCEB9m4SNnbVfLVAho0l1QeHnJhEe0kcOGx6SCMOVqtxMtpuL7etyEq4ZXoIsZkeQrOjjGKKZCKaUbNtuB8h1Zerpw/KL+/OMkqxihOg1i/5iXjvdXMlmZt+rWe2AViJVFy1q/wCKNgZIaHFkUsCLYd7XPWHnY2mW4TXBNnzDgAWsO7EH6iYZywfNnRgZEH+09qh76rWJZ2Vx6puMS5tj5zz0SMd7wx1gDcCxQw/rbh1vCyDzdv7zOxAps/pvWwWm5FkDZb5EtZL2QLcl9uAFNpdOVSTNugei1XhqLcaoRiJNGNjIcD3QxxePglxuKWhRFLXIzzapBKwkLMMw7DKMjwn3ScKK+bhBpthozrxqCc/rq5MtqW9jA==" />
+</div>
+    <div style="background: white;">
+      <div class="container margin-bottom1" style="padding-top: 5px; padding-bottom: 3px;">
+        <div class="row2">
+          <a href="http://dsms.fda.gov.tw">
+            <div class="col-md-6">
+              <div style="display: inline-block;">
+                <img class="img-responsive" alt="" src="Content/images/logo-en.gif" style="width: 100px;" />
+              </div>
+              <div style="display: inline-block; vertical-align: bottom; padding-bottom: 6px;">
+                <p class="fw" style="font-size: 29px; color: #FA8500">西藥醫療器材供應資訊平台</p>
+              </div>
+            </div>
+          </a>
+
+          <div class="col-md-6 padding-top1 kwsetting">
+            <div class="input-group stylish-input-group searchwidth searchRWD" style="float: left;">
+              <input name="ctl00$txtKeyWords" type="text" id="txtKeyWords" class="form-control" PlaceHolder="請輸入藥品關鍵字" />
+              <span class="input-group-addon" style="padding-top: 5px;">
+                <input type="image" name="ctl00$imbtnSearch" id="imbtnSearch" src="Content/images/search2.png" style="width: 18px;" />
+              </span>
+            </div>
+            <div class="hidden-xs" style="float: left">
+              <table style="width: 138px;">
+                <tr>
+                  <td>
+                    <input type="submit" name="ctl00$btnSearch" value="搜尋" id="btnSearch" style="border: none; display: inline-block; background-color: #46D021; color: #FFF; border-radius: 5px; padding: 3px 10px; margin-left: 8px; margin-top: 3px;" />
+                    <a href="http://dsms.fda.gov.tw/DSMS/" rel="noopener noreferrer" style="display: inline-block; background-color: orange; color: #FFF; border-radius: 5px; padding: 3px 10px; margin-left: 10px; margin-top: 3px;">登入</a>
+                  </td>
+                </tr>
+              </table>
+
+            </div>
+
+            
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container-fluid">
+      <div class="row searchAduject">
+        <div class="col-md-12 col-sm-12 col-xs-12" style="padding: 0px;">
+          <nav class="navbar navbar-default menucolor" style="border-bottom: 2px solid white;">
+            <div class="container">
+              <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false"><span class="sr-only">Toggle navigation</span><span>選單</span></button>
+              </div>
+              <div class="navbar-collapse collapse" id="bs-example-navbar-collapse-1" aria-expanded="false" style="height: 1px;">
+                <ul class="nav navbar-nav menu">
+                  <li><a href="http://dsms.fda.gov.tw" class="fw" style="line-height: 20px;">首頁</a></li>
+                  <li><a href="About.aspx" id="a_About" class="fw" style="line-height: 20px;">設置宗旨</a></li>
+                  <li class="dropdown"><a id="a_NewList78" class="fw dropbtn" style="line-height: 20px;">公告資訊</a>
+                    <div class="dropdown-content">
+                      
+                      <a href="/NewsList.aspx?s=7&r=2105972531">違反藥事法廠商</a>
+                    </div>
+                  </li>
+                  <li><a href="DrugList.aspx?s=3" id="a_DrugList3" class="fw" style="background: white !important;color: black !important;border-top: 1px solid #ccc;margin-top: -1px;border-bottom: 1px solid #ccc;margin-bottom: -1px;">建議使用替代藥品或其他建議</a></li>
+                  <li><a href="DrugList.aspx?s=2" id="a_DrugList2" class="fw" style="line-height: 20px;">已恢復供應藥品品項</a></li>
+                  <li><a href="ProjectManufacture.aspx" id="a_NewsList2" class="fw" style="line-height: 20px;">專案輸入/製造專區</a></li>
+                  <li><a href="NewsList.aspx?s=6" id="a_NewsList6" class="fw" style="line-height: 20px;">鼓勵業者申請許可證</a></li>
+                  
+                  
+                  
+                                    
+                  
+                  <li><a href="Md_Section.aspx" id="a_Md_Section" class="fw" style="line-height: 20px;">醫療器材專區</a></li>
+                  <li><a href="DownLink.aspx" id="a_DownLink" class="fw" style="line-height: 20px;">下載及相關連結</a></li>
+                  <li><a href="CaseSearch.aspx" id="a_CaseSearch" class="fw" style="line-height: 20px;">案件查詢</a></li>
+                  <li><a href="FAQ.aspx" id="a_FAQ" class="fw" style="line-height: 20px;">FAQ</a></li>
+                  <li><a href="D001/UserManual.pdf" id="a_UserManual" class="fw" style="line-height: 20px;" target="_blank">操作手冊</a></li>
+                </ul>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      <div id="headerImg" class="row" style="display:none">
+        <div class="col-md-12 col-sm-12 col-xs-12 effect2 " style="padding: 0px; margin-top: -21px;">
+          <div class="hovereffect" style="border-bottom: 1px solid #ccc;background-image: linear-gradient(120deg, #ffffff 0%, #75cef7 100%);">
+            <img alt="" src="Content/images/header6.jpg" class="img-responsive" style="    margin: 0 auto;" />
+          </div>
+        </div>
+      </div>
+      <div class="container2" style="min-height: 600px;">
+        
+  <br />
+  <h3 class="page-header margin-left-right1">
+    <span id="ContentPlaceHolder1_lblTitle">建議使用替代藥品或其他建議</span></h3>
+
+  <div id="ContentPlaceHolder1_Panel1" onkeypress="javascript:return WebForm_FireDefaultButton(event, &#39;ContentPlaceHolder1_imbtnSearch&#39;)">
+	
+    <div class="margin-left-right1 searchwidth2">
+      <div class="input-group stylish-input-group" style="float: left; margin-bottom: 12px;">
+        <input name="ctl00$ContentPlaceHolder1$txtKeyWords" type="text" id="ContentPlaceHolder1_txtKeyWords" class="form-control" PlaceHolder="請輸入藥品關鍵字" style="color:blue;" />
+        <span class="input-group-addon" style="padding-top: 5px;">
+          <input type="image" name="ctl00$ContentPlaceHolder1$imbtnSearch" id="ContentPlaceHolder1_imbtnSearch" src="Content/images/search2.png" style="width: 18px;" />
+        </span>
+      </div>
+    </div>
+  
+</div>
+  
+  <div class="row">
+    <div class="col-md-12 margin-left-right1">
+      <div>
+	<table cellspacing="0" class="grvTable hover" id="ContentPlaceHolder1_grvDrug" style="border-color:White;border-style:None;width:100%;border-collapse:collapse;">
+		<tr class="grvHeader">
+			<th scope="col">更新日期</th><th scope="col">中文品名</th><th scope="col">英文品名</th><th class="hidden-xs" scope="col">申請商</th><th class="hidden-xs" scope="col" style="width:10%;">案件編號</th>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_0">2025/02/10</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_0" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl02$lbtnProductNameC&#39;,&#39;&#39;)">易解鐵可溶錠125毫克</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_0" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl02$lbtnProductNameE&#39;,&#39;&#39;)">Exjade 125mg dispersible tablets</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_0" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl02$LinkButton3&#39;,&#39;&#39;)">台灣諾華股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1140333</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_1">2025/02/10</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_1" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl03$lbtnProductNameC&#39;,&#39;&#39;)">碘化固醇酮注射液</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_1" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl03$lbtnProductNameE&#39;,&#39;&#39;)">ADOSTEROL-I131 INJECTION</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_1" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl03$LinkButton3&#39;,&#39;&#39;)">元新儀器有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1090657</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_2">2025/02/07</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_2" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl04$lbtnProductNameC&#39;,&#39;&#39;)">汰癌勝注射液（派立達師）</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_2" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl04$lbtnProductNameE&#39;,&#39;&#39;)">TAXOL (PACLITAXEL) INJECTION 30MG/5ML</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_2" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl04$LinkButton3&#39;,&#39;&#39;)">台灣大昌華嘉股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1120861</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_3">2025/01/24</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_3" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl05$lbtnProductNameC&#39;,&#39;&#39;)">阿雷彼阿慶注射液</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_3" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl05$lbtnProductNameE&#39;,&#39;&#39;)">ALEVIATIN INJECTION</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_3" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl05$LinkButton3&#39;,&#39;&#39;)">東生華製藥股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1134167</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_4">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_4" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl06$lbtnProductNameC&#39;,&#39;&#39;)">複方泰福羅坦(單支裝)眼藥水</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_4" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl06$lbtnProductNameE&#39;,&#39;&#39;)">TAPCOM-S ophthalmic solution</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_4" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl06$LinkButton3&#39;,&#39;&#39;)">台灣參天製藥股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1133161</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_5">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_5" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl07$lbtnProductNameC&#39;,&#39;&#39;)">百瑞人體血清白蛋白20%注射液</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_5" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl07$lbtnProductNameE&#39;,&#39;&#39;)">SK Albumin 20% Injection</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_5" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl07$LinkButton3&#39;,&#39;&#39;)">佑康生醫科技有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1130242</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_6">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_6" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl08$lbtnProductNameC&#39;,&#39;&#39;)">安度孕陰道錠100毫克</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_6" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl08$lbtnProductNameE&#39;,&#39;&#39;)">Endometrin 100mg vaginal tablet</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_6" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl08$LinkButton3&#39;,&#39;&#39;)">輝凌藥品股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1120667</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_7">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_7" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl09$lbtnProductNameC&#39;,&#39;&#39;)">"十全" 易伏炎膜衣錠６００毫克</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_7" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl09$lbtnProductNameE&#39;,&#39;&#39;)">EBUFEN F.C. TABLET 600MG "S.C."</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_7" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl09$LinkButton3&#39;,&#39;&#39;)">十全實業股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1120625</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_8">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_8" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl10$lbtnProductNameC&#39;,&#39;&#39;)">"十全"康福膠囊</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_8" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl10$lbtnProductNameE&#39;,&#39;&#39;)">COMFORT CAPSULES "S.C."</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_8" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl10$LinkButton3&#39;,&#39;&#39;)">十全實業股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1120623</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_9">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_9" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl11$lbtnProductNameC&#39;,&#39;&#39;)">核研美必鎝心臟造影劑</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_9" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl11$lbtnProductNameE&#39;,&#39;&#39;)">INER MIBI KIT</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_9" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl11$LinkButton3&#39;,&#39;&#39;)">行政院原子能委員會核能研究所核醫製藥中心</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1120112</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_10">2025/01/17</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_10" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl12$lbtnProductNameC&#39;,&#39;&#39;)">迷你寧鼻腔噴霧劑１０ＵＧ／ＤＯＳＥ</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_10" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl12$lbtnProductNameE&#39;,&#39;&#39;)">MINIRIN NASAL SPRAY 10 UG/DOSE</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_10" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl12$LinkButton3&#39;,&#39;&#39;)">輝凌藥品股份有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1091440</td>
+		</tr><tr class="grvAlternatingRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_11">2025/01/13</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_11" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl13$lbtnProductNameC&#39;,&#39;&#39;)">易多巴注射液</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_11" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl13$lbtnProductNameE&#39;,&#39;&#39;)">Easydopa Injection</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_11" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl13$LinkButton3&#39;,&#39;&#39;)">歐舒邁克有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1131327</td>
+		</tr><tr class="grvRow">
+			<td style="font-size:16px">
+              <span id="ContentPlaceHolder1_grvDrug_lblPublishUpdateTime_12">2025/01/02</span>
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameC_12" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl14$lbtnProductNameC&#39;,&#39;&#39;)">胃樂伴 顆粒</a>
+              
+            </td><td style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_lbtnProductNameE_12" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl14$lbtnProductNameE&#39;,&#39;&#39;)">Ulban A Gran.</a>
+              
+            </td><td class="hidden-xs" style="font-size:16px">
+              <a id="ContentPlaceHolder1_grvDrug_LinkButton3_12" class="a" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug$ctl14$LinkButton3&#39;,&#39;&#39;)">曼哈頓企業有限公司</a>
+            </td><td class="hidden-xs" align="left" style="white-space:nowrap;font-size:16px">1133825</td>
+		</tr><tr align="center">
+			<td colspan="5"><table>
+				<tr>
+					<td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$1&#39;)">1</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$2&#39;)">2</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$3&#39;)">3</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$4&#39;)">4</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$5&#39;)">5</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$6&#39;)">6</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$7&#39;)">7</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$8&#39;)">8</a></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$9&#39;)">9</a></td><td><span>10</span></td><td><a href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$grvDrug&#39;,&#39;Page$11&#39;)">...</a></td>
+				</tr>
+			</table></td>
+		</tr>
+	</table>
+</div>
+      
+    </div>
+  </div>
+
+  <div class="end-btn">
+    <a class="btn_01" href="http://dsms.fda.gov.tw" style="color: white; text-decoration: none; padding-top: 7px; padding-bottom: 9px;">返回首頁</a>
+    
+  </div>
+
+      </div>
+    </div>
+    <footer id="footer" class="rowspace">
+      <div class="container c" style="padding-top: 3px;">
+
+        <div style="display: inline-block;vertical-align: super;">
+          <img class="img-responsive" alt="" src="../Content/images/logo-en.gif" style="width: 130px;" />
+        </div>
+        <div class="l" style="display: inline-block; vertical-align: bottom; padding-left: 5px;">
+          <p>
+          <a href="https://www.fda.gov.tw/TC/security.aspx" title="資訊安全策略" rel="noopener noreferrer" target="_blank">資訊安全策略</a>
+            <span style="position: relative; top: -1px; margin: 0 6px; }">|</span>
+            <a href="https://www.fda.gov.tw/TC/privacy.aspx" title="隱私權保護宣告" rel="noopener noreferrer" target="_blank">隱私權保護宣告</a>
+            <span style="position: relative; top: -1px; margin: 0 6px; }">|</span>
+            <a href="https://www.fda.gov.tw/TC/copyright.aspx" title="著作權聲明" rel="noopener noreferrer" target="_blank">著作權聲明</a>
+            </p>
+          <p>衛生福利部食品藥物管理署 © 2026版權所有 建議最佳瀏覽解析度為1024x768或以上</p>
+          <p>地址 115021 臺北市南港區研究院路一段130巷109號　電話 (02)2787-8000</p>
+          <p>系統操作諮詢服務信箱: eofficedm@gmail.com　操作服務專線 (02)2933-4566</p>
+        </div>
+
+      </div>
+    </footer>
+
+
+    <a href="#" id="back-to-top" title="Back to top">
+      <img class="back-to-top-image" alt="" src="Content/images/Back_to_top.png" /></a>
+
+    <script>
+      if ($('#back-to-top').length) {
+        var scrollTrigger = 100, // px
+       backToTop = function () {
+         var scrollTop = $(window).scrollTop();
+         if (scrollTop > scrollTrigger) {
+           $('#back-to-top').addClass('show');
+         } else {
+           $('#back-to-top').removeClass('show');
+         }
+       };
+        backToTop();
+        $(window).on('scroll', function () {
+          backToTop();
+        });
+        $('#back-to-top').on('click', function (e) {
+          e.preventDefault();
+          $('html,body').animate({
+            scrollTop: 0
+          }, 700);
+        });
+      }
+    </script>
+
+    <script type="text/javascript">
+      //window.onload = function () {
+      $(document).ready(function () {
+        
+        //var txt = document.getElementsByTagName("input");
+        //for (var i = 0; i < txt.length; i++) {
+        //  if (txt[i].type == "text") {
+        //    txt[i].setAttribute("onkeydown", "return(event.keyCode!=13);")
+        //    txt[i].setAttribute("autocomplete", "off")
+        //  }
+        //}
+        
+        var links = document.getElementsByTagName("a");
+        for (var i = 0; i < links.length; i++) {
+          links[i].setAttribute("rel", "noopener noreferrer");
+        }
+      });
+    </script>
+
+  
+<script src="/WebResource.axd?d=pynGkmcFUV13He1Qd6_TZHscWQxxFUmtt5SEJMd7DtYHsnJ3MZiBJ-ZoPwafvvTYqEWnUl9deIVjIeYc16zaBXwkOdVocgQ3tHXDjBmt8_5ZkbmORdbA1AncneNWmhgB0&amp;t=639191157291376328" type="text/javascript"></script>
+</form>
+</body>
+</html>

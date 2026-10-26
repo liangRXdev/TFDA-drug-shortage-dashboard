@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import PwaBanners from './PwaBanners'
+import StatusBanners from './StatusBanners'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, ResponsiveContainer 
@@ -21,6 +22,15 @@ import {
   isDataStale,
   isUpstreamFrozen,
 } from './lib/dataPipeline'
+import {
+  type SupplementLoad,
+  SUPPLEMENT_URL_PATH,
+  applySupplement,
+  loadSupplement,
+  recordKeys,
+  supplementListUrl,
+  trustExpiresAt,
+} from './lib/supplement'
 
 // ----------------------------------------------------------------------
 // 統計 Hook
@@ -34,6 +44,7 @@ const useCompositeStats = (allData: DrugRecord[]) => {
 // ----------------------------------------------------------------------
 export default function App() {
   const [data, setData] = useState<SupplyData | null>(null);
+  const [supplement, setSupplement] = useState<SupplementLoad | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -54,22 +65,55 @@ export default function App() {
   }, [searchTerm]);
 
   useEffect(() => {
+    // 增量 S：補抓檔與主檔並行載入。loadSupplement 永不 reject、最多等 8 秒，
+    // 補抓失敗不得阻斷主資料（只會變成紅色警示）。
+    const supplementLoad = loadSupplement(`${import.meta.env.BASE_URL}${SUPPLEMENT_URL_PATH}`);
     // CR-10：檢查 res.ok，並以 isSupplyData 做執行期結構驗證（ETL fail-closed 之外的第二道防線）
     fetch(`${import.meta.env.BASE_URL}data/supply_status_latest.json`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then(json => {
+      .then(async json => {
         if (!isSupplyData(json)) throw new Error('供應資料結構不符預期');
+        setSupplement(await supplementLoad);
         setData(json);
         setLoading(false);
       })
       .catch(() => { setLoading(false); setFetchError(true); });
   }, []);
 
+  // 增量 S（R4）：新鮮度依賴「現在」。藥局工作站分頁常駐數天是常態，
+  // 只在載入時判一次的話，過了 3 天門檻舊公告仍被隱藏、紅色警示不出現。
+  // 在信任到期時刻、切回分頁、視窗取得焦點、以及每 30 分鐘重算一次。
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tick);
+    const interval = setInterval(tick, 30 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tick);
+      clearInterval(interval);
+    };
+  }, []);
+  useEffect(() => {
+    const expires = trustExpiresAt(supplement, now);
+    if (expires === null) return;
+    const t = setTimeout(() => setNow(Date.now()), expires - now + 1000);
+    return () => clearTimeout(t);
+  }, [supplement, now]);
+
+  // 增量 S：套用補抓（D10 條件不成立時只新增缺藥、不隱藏任何列）
+  const merged = useMemo(
+    () => (data && supplement ? applySupplement(data, supplement, now) : null),
+    [data, supplement, now],
+  );
+
   // 核心資料管線 Step 1：殭屍清除 + 去重 + meta 掛載（不含篩選）
-  const cleanedData = useMemo(() => cleanSupplyData(data), [data]);
+  const cleanedData = useMemo(() => cleanSupplyData(merged ? merged.data : data), [merged, data]);
 
   // 核心資料管線 Step 2：排序 + 篩選（最新十筆語意見 selectVisibleRecords）
   const processedData = useMemo(() => {
@@ -122,43 +166,14 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f4f8', display: 'flex', flexDirection: 'column', fontFamily: '"Noto Sans TC", sans-serif' }}>
       <PwaBanners />
-      {/* 資料過期警示（CR-06）：逾每週更新週期時醒目提示，避免誤把陳舊資料當現況 */}
-      {dataStale && (
-        <div role="alert" style={{
-          background: '#fef2f2',
-          borderBottom: '2px solid #fca5a5',
-          color: '#991b1b',
-          padding: '10px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-        }}>
-          <span>⚠️ 資料已超過預定更新週期（每週更新），目前為 {dataAgeDays} 天前。實際供應狀態請以 TFDA 官方公告為準。</span>
-        </div>
-      )}
-      {/* 上游停更疑似訊號（增量 F）：排程照跑但上游公告日期未前進。
-          與上方模式 A 警示各自獨立顯示，兩者可同時成立、互不遮蔽。
-          文案刻意不寫「上游已停更」——同日修訂與局部停更不會觸發，這是疑似訊號。 */}
-      {upstreamFrozen && (
-        <div role="status" style={{
-          background: '#fffbeb',
-          borderBottom: '2px solid #fcd34d',
-          color: '#92400e',
-          padding: '10px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-        }}>
-          <span>
-            ⚠️ 已連續 {data?.frozen_runs} 次觀測未見上游公告日期前進
-            （最新公告：{data?.upstream_max_date}），清單時效需留意。
-          </span>
-        </div>
-      )}
+      <StatusBanners
+        dataStale={dataStale}
+        dataAgeDays={dataAgeDays}
+        upstreamFrozen={upstreamFrozen}
+        frozenRuns={data?.frozen_runs}
+        upstreamMaxDate={data?.upstream_max_date}
+        supplement={merged}
+      />
       {/* 導覽列 */}
       <nav className="nav">
         <div className="nav__inner">
@@ -375,6 +390,8 @@ function YearGroup({ year, months, theme, defaultOpen }: { year: string, months:
 
 function MonthGroup({ month, items, theme, defaultOpen }: { month: string, items: DrugRecord[], theme: Theme, defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
+  // 增量 S（B9）：key 用內容身分＋同組序號；opendata 的「編號」跨更新不穩定
+  const keys = useMemo(() => recordKeys(items), [items]);
   return (
     <div className="month-group">
       <button className="month-group__toggle" onClick={() => setOpen(!open)}>
@@ -384,7 +401,7 @@ function MonthGroup({ month, items, theme, defaultOpen }: { month: string, items
       {open && (
         <div className="month-group__list">
           {items.map((item, i) => (
-            <DrugCard key={item.許可證字號 || item.編號 || String(i)} item={item} theme={theme} />
+            <DrugCard key={keys[i]} item={item} theme={theme} />
           ))}
         </div>
       )}
@@ -398,6 +415,7 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
   const [zhName, enName] = (item.中文品名 || '').split('\n');
   const d = item._days ?? 0;
   const altConfidence = alternativeConfidence(item._altText); // CR-07：替代藥信心分級
+  const sourceUrl = supplementListUrl(item); // 增量 S：補抓列的來源徽章
 
   return (
     <div className="drug-card">
@@ -412,6 +430,18 @@ function DrugCard({ item, theme }: { item: DrugRecord, theme: Theme }) {
           <div className="drug-card__date">{item.公告更新時間}</div>
         </div>
         <div className="drug-card__right">
+          {sourceUrl && (
+            <a
+              className="recovery-tag recovery-tag--default"
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              title="此筆尚未收錄於政府開放資料，由食藥署西藥供應資訊網站補抓；點擊開啟官網列表"
+            >
+              公告頁補抓
+            </a>
+          )}
           {theme !== 'emerald' && (
             <span
               className={`recovery-tag recovery-tag--${d > 30 ? 'red' : d >= 14 ? 'amber' : 'default'}`}

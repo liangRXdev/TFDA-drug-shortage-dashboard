@@ -1,0 +1,91 @@
+{
+  "main": {
+    "last_updated": "2026-10-23 04:53:03",
+    "upstream_max_date": "2026/10/07",
+    "frozen_runs": 1,
+    "datasets": {
+      "54504_with_alternative": [
+        {
+          "編號": "1",
+          "公告更新時間": "2026/10/01",
+          "中文品名": "V藥\nEN",
+          "許可證字號": "衛署藥輸字第000777號",
+          "供應狀態": "缺藥中"
+        }
+      ],
+      "54505_no_alternative": [],
+      "54506_resolved": []
+    }
+  },
+  "supplement": {
+    "schema": 1,
+    "generated_at": "2026-10-26T10:00:00+08:00",
+    "run_id": "RUN-LATER",
+    "categories": {
+      "s3": {
+        "dataset": "54504_with_alternative",
+        "state": "ok",
+        "error": null,
+        "last_success_at": "2026-10-26T10:00:00+08:00",
+        "success_run_id": "RUN-LATER",
+        "base": {
+          "last_updated": "2026-10-23 04:53:03",
+          "upstream_max_date": "2026/10/07"
+        },
+        "scanned": {
+          "pages": 1,
+          "rows": 1
+        },
+        "additions": [],
+        "supersedes": [],
+        "excluded_no_license": []
+      },
+      "s4": {
+        "dataset": "54505_no_alternative",
+        "state": "ok",
+        "error": null,
+        "last_success_at": "2026-10-26T10:00:00+08:00",
+        "success_run_id": "RUN-LATER",
+        "base": {
+          "last_updated": "2026-10-23 04:53:03",
+          "upstream_max_date": "2026/10/07"
+        },
+        "scanned": {
+          "pages": 1,
+          "rows": 0
+        },
+        "additions": [],
+        "supersedes": [],
+        "excluded_no_license": []
+      },
+      "s2": {
+        "dataset": "54506_resolved",
+        "state": "error",
+        "error": "s2：頁面標題不符（非預期頁面）",
+        "last_success_at": "2026-10-26T09:00:00+08:00",
+        "success_run_id": "RUN-EARLIER",
+        "base": {
+          "last_updated": "2026-10-23 04:53:03",
+          "upstream_max_date": "2026/10/07"
+        },
+        "scanned": {
+          "pages": 1,
+          "rows": 1
+        },
+        "additions": [
+          {
+            "編號": "dsms-1150778",
+            "公告更新時間": "2026/10/20",
+            "中文品名": "V藥\nEN",
+            "許可證字號": "衛署藥輸字第000777號",
+            "供應狀態": "已恢復",
+            "_來源": "dsms",
+            "_案件編號": "1150778"
+          }
+        ],
+        "supersedes": [],
+        "excluded_no_license": []
+      }
+    }
+  }
+}

@@ -40,6 +40,18 @@ export default defineConfig({
             },
           },
           {
+            // 增量 S：補抓檔比照主檔 NetworkFirst。離線回快取時，前端以各類
+            // last_success_at 判新鮮度，過期快取一樣亮紅，不會被當成最新狀態。
+            urlPattern: ({ url }) => url.pathname.endsWith('supply_supplement.json'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'shortage-supplement-v1',
+              networkTimeoutSeconds: 5,
+              expiration: { maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
             handler: 'StaleWhileRevalidate',
             options: {

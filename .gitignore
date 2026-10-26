@@ -27,3 +27,7 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# dsms 補抓（增量 S）：本機排程的 venv 與執行 log
+.venv/
+scripts/update_supplement.log
