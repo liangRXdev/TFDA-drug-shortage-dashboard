@@ -13,7 +13,8 @@ opendata 104／105／106 停更期間，以食藥署「西藥供應資訊」網�
 - 寧可 error 不可猜（D7）：完整性守門任一條不成立、或同一比較單位在兩邊次數不同，
   一律該類 error，不任選一筆刪除。
 - 兩輪掃描（D8）：掃描中網站有變動時，單輪快照可能是不同時間點拼起來的。
-- 熔斷（D9）：supersedes 過多視為改版或命名規則變動，該類 error，不自動放寬。
+- 熔斷（D9 r6）：「孤兒」supersedes（同類 additions 沒有同證號新版者）過多視為改版或
+  命名規則變動，該類 error，不自動放寬；另設總量上限防系統性解析錯誤整批替換。
 
 為什麼不在 CI 跑：同機關的 consumer.fda.gov.tw 已證實封鎖境外 IP；dsms 的 CI 可達性
 未驗證（D3）。由本機 scripts/update_supplement.py 每日排程呼叫。
@@ -55,8 +56,9 @@ PAGE_SIZE = 13                 # 非末頁每頁筆數（2026-10-26 實測）
 MAX_PAGES = 40                 # 翻頁上限；第 40 頁仍有下一頁 → error
 REQUEST_INTERVAL = 0.5         # 秒；每個請求前固定間隔，降低對政府網站的負載
 REQUEST_TIMEOUT = 30
-CAP_MIN = 3                    # D9 熔斷：cap = max(CAP_MIN, floor(CAP_RATIO × |O|))
+CAP_MIN = 3                    # D9 熔斷：孤兒 supersedes ≤ max(CAP_MIN, floor(CAP_RATIO × |O|))
 CAP_RATIO = 0.02
+CAP_TOTAL_RATIO = 0.10         # D9 r6 總量上限：全部 supersedes ≤ max(孤兒上限, floor(10% × |O|))
 MAX_ATTEMPTS = 2               # 兩輪掃描不一致時，整次重試一次
 FUTURE_TOLERANCE_DAYS = 1      # 日期不得晚於今天＋1 天（台灣時區）
 
@@ -604,12 +606,40 @@ def supersede_entry(row, category):
     }
 
 
-def check_cap(supersedes, main_rows, category):
-    """D9 熔斷：supersedes > max(3, floor(2% × |O|)) → error；不自動放寬。"""
+def orphan_supersedes(supersedes, additions):
+    """D9 r6：同類 additions 中沒有同證號新版可配對的 supersedes（多重集合一對一配對）。
+
+    TFDA 修訂公告＝舊列消失＋同證號新列出現，看板上該藥仍有新版可見，不會漏報；
+    網站改版或命名規則變動造成的漏報，特徵是舊列消失卻沒有對應新列。空證號永不配對。
+    """
+    available = Counter(norm(a.get("許可證字號")) for a in additions)
+    available.pop("", None)
+    orphans = []
+    for entry in supersedes:
+        lic = norm(entry.get("許可證字號"))
+        if lic and available[lic] > 0:
+            available[lic] -= 1
+        else:
+            orphans.append(entry)
+    return orphans
+
+
+def check_cap(supersedes, main_rows, category, additions=()):
+    """D9 熔斷（r6）：任一條成立 → error；不自動放寬。
+
+    - 孤兒 supersedes > max(3, floor(2% × |O|))
+    - 全部 supersedes > max(上式, floor(10% × |O|))：配對只證明「有新版」，不證明新版解析正確，
+      系統性解析錯誤會讓每列都「改版」而整批替換，以總量上限擋下
+    """
     cap = max(CAP_MIN, int(CAP_RATIO * len(main_rows)))
-    if len(supersedes) > cap:
-        raise ScrapeError(f"{category}：supersedes {len(supersedes)} 筆超過熔斷上限 {cap}"
-                          "（改版或大量修訂？確認後人工調整 CAP_*）")
+    total_cap = max(cap, int(CAP_TOTAL_RATIO * len(main_rows)))
+    orphans = orphan_supersedes(supersedes, additions)
+    if len(orphans) > cap:
+        raise ScrapeError(f"{category}：無同證號新版的 supersedes {len(orphans)} 筆超過熔斷上限 {cap}"
+                          "（改版或命名規則變動？確認後人工調整 CAP_*）")
+    if len(supersedes) > total_cap:
+        raise ScrapeError(f"{category}：supersedes 共 {len(supersedes)} 筆超過熔斷總量上限 {total_cap}"
+                          "（大量修訂或解析錯誤？確認後人工調整 CAP_*）")
 
 
 def process_category(client, category, pages, main, today):
@@ -643,7 +673,7 @@ def process_category(client, category, pages, main, today):
         added_rows, removed = diff_units(main_items, site_items, category)
         added = [r for r in (fetch(row, hidden) for row, hidden in added_rows) if r is not None]
     supersedes = [supersede_entry(r, category) for r in removed]
-    check_cap(supersedes, main_rows, category)
+    check_cap(supersedes, main_rows, category, added)
     return {
         "scanned": {"pages": len(pages), "rows": len(located)},
         "additions": added,
