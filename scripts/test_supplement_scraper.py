@@ -640,6 +640,86 @@ def test_a6_cap_boundaries(n_main, n_removed, ok):
             sup.check_cap(entries, rows, "s3")
 
 
+# D9 r6：孤兒 supersedes 才計入熔斷上限；另有總量上限
+def sup_entry(lic):
+    return {"品名鍵": "x", "公告更新時間": "2026/01/01", "許可證字號": lic, "指紋": "x"}
+
+
+def lic(i):
+    return f"衛署藥輸字第{i:06d}號"
+
+
+def test_d9r6_real_2026_11_03_shape_passes():
+    """2026-11-03 實況：|O|＝240（cap 4），6 筆 supersedes 中 5 筆有同證號新版、1 筆下架。"""
+    supersedes = [sup_entry(lic(i)) for i in range(6)]
+    additions = [{"許可證字號": lic(i)} for i in range(5)] + [{"許可證字號": lic(99)}]
+    assert len(sup.orphan_supersedes(supersedes, additions)) == 1
+    sup.check_cap(supersedes, [{}] * 240, "s3", additions)
+
+
+def test_d9r6_orphans_over_cap_is_error():
+    supersedes = [sup_entry(lic(i)) for i in range(6)]
+    additions = [{"許可證字號": lic(0)}]  # 只 1 筆配對 → 孤兒 5 > cap 4
+    with pytest.raises(sup.ScrapeError, match="無同證號新版"):
+        sup.check_cap(supersedes, [{}] * 240, "s3", additions)
+
+
+def test_d9r6_pairing_is_one_to_one():
+    supersedes = [sup_entry(lic(1)), sup_entry(lic(1))]
+    assert sup.orphan_supersedes(supersedes, [{"許可證字號": lic(1)}]) == [supersedes[1]]
+
+
+@pytest.mark.parametrize("value", ["", None, "   "])
+def test_d9r6_empty_license_never_pairs(value):
+    supersedes = [sup_entry(value)]
+    assert sup.orphan_supersedes(supersedes, [{"許可證字號": value}]) == supersedes
+
+
+def test_d9r6_license_normalized_before_pairing():
+    supersedes = [sup_entry(lic(1))]
+    assert sup.orphan_supersedes(supersedes, [{"許可證字號": f" {lic(1)} "}]) == []
+
+
+@pytest.mark.parametrize("n_main,n_paired,ok", [
+    (240, 24, True), (240, 25, False),   # 總量上限 floor(10% × 240)＝24
+    (20, 3, True), (20, 4, False),       # 小類別：總量上限退回孤兒上限 3
+])
+def test_d9r6_total_cap_even_when_all_paired(n_main, n_paired, ok):
+    supersedes = [sup_entry(lic(i)) for i in range(n_paired)]
+    additions = [{"許可證字號": lic(i)} for i in range(n_paired)]
+    if ok:
+        sup.check_cap(supersedes, [{}] * n_main, "s3", additions)
+    else:
+        with pytest.raises(sup.ScrapeError, match="總量"):
+            sup.check_cap(supersedes, [{}] * n_main, "s3", additions)
+
+
+def revision_case(tmp_path, same_license):
+    """主檔 45 筆背景＋5 筆舊版；網站把那 5 筆改版（新日期）。cap＝3、總量上限＝5。"""
+    background = drugs_n(45)
+    main_rows = [opendata_row(str(i), d["date"], d["zh"]) for i, d in enumerate(background)]
+    main_rows += [opendata_row(f"r{i}", "2026/08/01", f"修訂藥{i}", license_no=lic(i), text="舊說明")
+                  for i in range(5)]
+    revised = [drug(str(3000000 + i), "2026/10/01", f"修訂藥{i}",
+                    license_no=lic(i) if same_license else lic(100 + i), text="新說明")
+               for i in range(5)]
+    main_path = main_file(tmp_path, {"54504_with_alternative": main_rows})
+    return run_once(tmp_path, FakeSite({"s3": revised + background, "s4": [], "s2": []}), main_path)
+
+
+def test_d9r6_flow_revisions_with_same_license_pass(tmp_path):
+    code, out = revision_case(tmp_path, same_license=True)
+    s3 = out["categories"]["s3"]
+    assert s3["state"] == "ok", s3.get("error")
+    assert len(s3["supersedes"]) == 5 and len(s3["additions"]) == 5
+
+
+def test_d9r6_flow_disappeared_rows_still_trip(tmp_path):
+    code, out = revision_case(tmp_path, same_license=False)
+    s3 = out["categories"]["s3"]
+    assert code == 2 and s3["state"] == "error" and "無同證號新版" in s3["error"]
+
+
 # ----------------------------------------------------------------------
 # A8／A9：主檔不可用、原子寫入
 # ----------------------------------------------------------------------
