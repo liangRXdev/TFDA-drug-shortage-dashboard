@@ -548,3 +548,55 @@ describe('isSupplementData：逐筆驗證', () => {
     ['supersede 日期帶頭尾空白', d => { d.categories.s3.supersedes = [{ 品名鍵: 'x', 公告更新時間: '2026/01/01 ', 許可證字號: 'y', 指紋: 'z' }]; }],
   ])('%s → false', (_n, mutate) => expect(isSupplementData(broken(mutate))).toBe(false));
 });
+
+// ----------------------------------------------------------------------
+// 雲端覆審 2026-11-05 F4：套用語意的規格性質（D2／D6／S7）。以下三種錯誤實作在既有
+// 測試下全綠（見 commit 說明），逐條釘住。
+// ----------------------------------------------------------------------
+describe('F4：依單位與數量套用（D2／D6／S7）', () => {
+  it('D2：主檔已有同單位的列 → 依數量略過，不重複加入（s3 比內容）', () => {
+    const fresh = dsms('1141284', '2026/10/16', '滅必治軟膠囊50毫克', '衛署藥製字第000001號', '新說明');
+    const already = od('O9', '2026/10/16', '滅必治軟膠囊50毫克', '衛署藥製字第000001號', ' 新說明 ');
+    const r = applySupplement(mkMain({ '54504_with_alternative': [already] }),
+      mkSup({ s3: { additions: [fresh] } }), NOW);
+    expect(ids(r.data.datasets['54504_with_alternative'])).toEqual(['O9']);
+    expect(r.added).toBe(0);
+  });
+
+  it('D2：內容不同 → 不略過（s3）；s2 只比品名＋日期 → 略過（N9）', () => {
+    const fresh = dsms('1', '2026/10/16', '甲藥', '衛署藥製字第000001號', '新說明');
+    const differs = od('O1', '2026/10/16', '甲藥', '衛署藥製字第000001號', '主檔說明');
+    const s3 = applySupplement(mkMain({ '54504_with_alternative': [differs] }), mkSup({ s3: { additions: [fresh] } }), NOW);
+    expect(ids(s3.data.datasets['54504_with_alternative'])).toEqual(['O1', 'dsms-1']);
+    const s2 = applySupplement(mkMain({ '54506_resolved': [differs] }), mkSup({ s2: { additions: [fresh] } }), NOW);
+    expect(ids(s2.data.datasets['54506_resolved'])).toEqual(['O1']);
+  });
+
+  it('D2：主檔同單位 1 筆、additions 同單位 2 筆 → 只略過 1 筆', () => {
+    const a1 = dsms('1', '2026/10/16', '甲藥', '衛署藥製字第000001號', '說明');
+    const a2 = dsms('2', '2026/10/16', '甲藥', '衛署藥製字第000001號', '說明');
+    const r = applySupplement(mkMain({ '54504_with_alternative': [od('O1', '2026/10/16', '甲藥')] }),
+      mkSup({ s3: { additions: [a1, a2] } }), NOW);
+    expect(ids(r.data.datasets['54504_with_alternative'])).toEqual(['O1', 'dsms-2']);
+  });
+
+  it.each<[CategoryKey, string]>([['s3', '54504_with_alternative'], ['s2', '54506_resolved']])(
+    'D6：%s 隱藏須證號相符——同名同日、證號不同的列排在前面也不得被藏', (key, dataset) => {
+      const compare = key !== 's2';
+      const target = od('T', '2026/05/07', '甲藥', '衛署藥製字第000001號');
+      const other = od('Y', '2026/05/07', '甲藥', '衛署藥製字第000002號');
+      const r = applySupplement(mkMain({ [dataset]: [other, target] }),
+        mkSup({ [key]: { supersedes: [sup(target, compare)] } }), NOW);
+      expect(ids(r.data.datasets[dataset])).toEqual(['Y']);
+    });
+
+  it('S7：同單位 2 筆、supersede 1 筆 → 只隱藏 1 筆（主檔在 base 之後新增了一筆相同列）', () => {
+    const row = od('O1', '2026/05/07', '甲藥');
+    const dup = { ...row, 編號: 'O2' };
+    const r = applySupplement(mkMain({ '54504_with_alternative': [row, dup] }, '2026-10-26 04:00:00'),
+      mkSup({ s3: { supersedes: [sup(row)] } }), NOW);
+    expect(r.trusted).toBe(true);
+    expect(ids(r.data.datasets['54504_with_alternative'])).toEqual(['O2']);
+    expect(r.hidden).toBe(1);
+  });
+});
