@@ -1179,7 +1179,12 @@ def assert_carried(out, prev, category):
     lambda: list_html("s3", [{"date": "2026/09/20", "zh": f"背景藥{i}", "case": str(2000000 + i)}
                              for i in range(8)], current=2, total=2),                       # 重複案件
     lambda: list_html("s3", [{"date": "2026/09/20", "zh": "x", "case": "2000013"}]),         # 沒有分頁列
-], ids=["中間頁短少", "重複案件", "提早截斷"])
+    # 雲端覆審 F3：A2 規格「每一種 error 都要斷言該類結果等於前檔」，補 (d)(g) 兩種
+    lambda: list_html("s3", [{"date": "2026/10/25", "zh": f"晚藥{i}", "case": str(2100000 + i)}
+                             for i in range(8)], current=2, total=2),                       # 日期遞增
+    lambda: list_html("s3", [{"date": "2026/09/01", "zh": f"末頁藥{i}", "case": str(2100000 + i)}
+                             for i in range(8)], current=3, total=3),                       # 頁碼標記錯
+], ids=["中間頁短少", "重複案件", "提早截斷", "日期遞增", "頁碼標記錯"])
 def test_t_r1_a2_failures_carry_every_field(tmp_path, make_override):
     main_path, site, prev = rich_previous(tmp_path)
     site.overrides[("s3", 2)] = make_override()
@@ -1360,3 +1365,30 @@ def test_d9r6_cap_formula_exact(n_main, cap, total):
     sup.check_cap(paired, rows, "s3", adds)
     with pytest.raises(sup.ScrapeError, match="總量"):
         sup.check_cap(paired + [sup_entry(lic(total))], rows, "s3", adds)
+
+
+# 雲端覆審 2026-11-05 F3：A3「13 筆中有 1 筆破損」。既有 A3 測試的破損頁只有那 1 列，
+# 「略過破損列」的錯誤實作會因頁面變空／非末頁不足 13 筆而被別的守門擋下，測不到 A3 本身。
+# 這裡用單頁（末頁容許 1～13 筆）：略過破損列會剩 12 筆合法頁、靜默漏掉第 13 筆。
+def test_f3_a3_one_broken_among_thirteen_on_single_page(tmp_path):
+    main_path = main_file(tmp_path)
+    s3 = drugs_n(13)
+    site = FakeSite({"s3": s3, "s4": [],
+                     "s2": [drug("1150700", "2026/10/20", "新恢復藥", license_no="衛部藥輸字第000061號")]})
+    _, prev = run_once(tmp_path, site, main_path)
+    assert len(prev["categories"]["s3"]["additions"]) == 13
+    good12 = [{"date": d["date"], "zh": d["zh"], "case": d["case"]} for d in s3[:12]]
+    site.overrides[("s3", 1)] = list_html("s3", good12).replace(
+        "</table>", '<tr class="grvRow"><td>壞</td><td>x</td></tr></table>')
+    code, out = run_once(tmp_path, site, main_path, now=LATER)
+    assert code == 2
+    assert_carried(out, prev, "s3")
+    s2 = out["categories"]["s2"]
+    assert s2["state"] == "ok" and s2["last_success_at"] == LATER.isoformat(timespec="seconds")
+
+
+def test_f3_a4_detail_redirect_category_mismatch_is_error():
+    """A4／§6.2「類別：詳情頁跳轉網址的 s= 必須等於所在類別」——既有測試只驗了列表請求。"""
+    wrong = "https://dsms.fda.gov.tw/DrugInfo.aspx?No=abc%3d&s=2&from=DrugList&r=1"
+    with pytest.raises(sup.ScrapeError, match="非預期頁"):
+        client_with(FakeResponse(200, wrong)).open_detail("s3", {"__VIEWSTATE": "v"}, "t")
