@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-03T17:34:07+08:00",
-  "run_id": "20261103T173407-91ea332d",
+  "generated_at": "2026-11-04T09:16:56+08:00",
+  "run_id": "20261104T091656-f2d00cee",
   "categories": {
     "s3": {
       "dataset": "54504_with_alternative",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-03T17:34:07+08:00",
-      "success_run_id": "20261103T173407-91ea332d",
+      "last_success_at": "2026-11-04T09:16:56+08:00",
+      "success_run_id": "20261104T091656-f2d00cee",
       "base": {
         "last_updated": "2026-10-30 06:03:22",
         "upstream_max_date": "2026/10/21"
@@ -192,8 +192,8 @@
       "dataset": "54505_no_alternative",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-03T17:34:07+08:00",
-      "success_run_id": "20261103T173407-91ea332d",
+      "last_success_at": "2026-11-04T09:16:56+08:00",
+      "success_run_id": "20261104T091656-f2d00cee",
       "base": {
         "last_updated": "2026-10-30 06:03:22",
         "upstream_max_date": "2026/10/21"
@@ -210,8 +210,8 @@
       "dataset": "54506_resolved",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-03T17:34:07+08:00",
-      "success_run_id": "20261103T173407-91ea332d",
+      "last_success_at": "2026-11-04T09:16:56+08:00",
+      "success_run_id": "20261104T091656-f2d00cee",
       "base": {
         "last_updated": "2026-10-30 06:03:22",
         "upstream_max_date": "2026/10/21"
