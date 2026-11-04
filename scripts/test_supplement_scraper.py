@@ -1311,3 +1311,52 @@ def test_f1_previous_addition_date_with_whitespace_is_discarded(tmp_path, raw):
 def test_f1_supersede_date_with_whitespace_violates_contract(raw):
     entry = {"品名鍵": "x", "公告更新時間": raw, "許可證字號": "衛署藥製字第000001號", "指紋": "x"}
     assert sup._supersede_problems(entry, "s3") != []
+
+
+# 雲端覆審 2026-11-05 F2：D9 r6 配對邊界補強。既有測試在「配對消耗以 supersede 總數相減」
+# 一類的錯誤實作下仍全綠（見 commit 說明）；以下逐條釘住規格 D9 的「同證號、一對一」。
+def test_d9r6_surplus_same_license_additions_do_not_pair_other_licenses():
+    """配對數 > supersedes：同一證號的多餘新版不得抵銷其他證號的孤兒。"""
+    supersedes = [sup_entry(lic(0))] + [sup_entry(lic(i)) for i in range(1, 6)]
+    additions = [{"許可證字號": lic(0)}] * 6
+    assert sup.orphan_supersedes(supersedes, additions) == supersedes[1:]
+    with pytest.raises(sup.ScrapeError, match="無同證號新版"):
+        sup.check_cap(supersedes, [{}] * 240, "s3", additions)   # 孤兒 5 > cap 4
+
+
+def test_d9r6_unrelated_license_additions_never_pair():
+    """additions 多、但沒有任何同證號 → 全部是孤兒（不得以筆數相抵）。"""
+    supersedes = [sup_entry(lic(i)) for i in range(5)]
+    additions = [{"許可證字號": lic(100 + i)} for i in range(5)]
+    assert sup.orphan_supersedes(supersedes, additions) == supersedes
+    with pytest.raises(sup.ScrapeError, match="無同證號新版"):
+        sup.check_cap(supersedes, [{}] * 240, "s3", additions)
+
+
+def test_d9r6_same_license_multiplicity_both_sides():
+    """同證號多筆：supersedes 3、additions 2 → 孤兒恰 1，且與輸入順序無關。"""
+    a, b = lic(1), lic(2)
+    supersedes = [sup_entry(a), sup_entry(b), sup_entry(a), sup_entry(a)]
+    additions = [{"許可證字號": a}, {"許可證字號": b}, {"許可證字號": a}]
+    assert len(sup.orphan_supersedes(supersedes, additions)) == 1
+    for seed in range(5):
+        shuffled = random.Random(seed).sample(supersedes, len(supersedes))
+        orphans = sup.orphan_supersedes(shuffled, additions)
+        assert [o["許可證字號"] for o in orphans] == [a]
+
+
+@pytest.mark.parametrize("n_main,cap,total", [
+    (0, 3, 3), (149, 3, 14), (150, 3, 15), (199, 3, 19), (200, 4, 20), (240, 4, 24), (406, 8, 40),
+])
+def test_d9r6_cap_formula_exact(n_main, cap, total):
+    """兩條上限的整數定義逐點核對：恰在上限 ok、多 1 筆 error（孤兒與總量分開驗）。"""
+    rows = [{}] * n_main
+    orphans = [sup_entry(lic(i)) for i in range(cap)]
+    sup.check_cap(orphans, rows, "s3")
+    with pytest.raises(sup.ScrapeError, match="無同證號新版"):
+        sup.check_cap(orphans + [sup_entry(lic(999))], rows, "s3")
+    paired = [sup_entry(lic(i)) for i in range(total)]
+    adds = [{"許可證字號": lic(i)} for i in range(total + 1)]
+    sup.check_cap(paired, rows, "s3", adds)
+    with pytest.raises(sup.ScrapeError, match="總量"):
+        sup.check_cap(paired + [sup_entry(lic(total))], rows, "s3", adds)
