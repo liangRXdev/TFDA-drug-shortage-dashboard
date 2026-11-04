@@ -110,6 +110,17 @@ def parse_date(value):
     return value.strip()
 
 
+def strict_date(value):
+    """整串就是 `YYYY/MM/DD` 的真實曆日（不容頭尾空白）→ 原字串；否則 None。
+
+    輸出契約與主檔比對用這個：前端 isSupersede／isValidAnnouncementDate 以
+    `^\\d{4}/\\d{2}/\\d{2}$` 整串比對，Python 若先 strip 再驗，會寫出前端整份拒收的
+    補抓檔（雲端覆審 F1）。parse_date 的 strip 只留給解析網頁文字。
+    """
+    parsed = parse_date(value)
+    return parsed if parsed is not None and parsed == value else None
+
+
 def check_date(value, today, what):
     """驗證日期有效且不在未來（容許 FUTURE_TOLERANCE_DAYS）；失敗 raise。"""
     parsed = parse_date(value)
@@ -648,7 +659,9 @@ def process_category(client, category, pages, main, today):
     # 第二輪 N2c：主檔日期無效的列若被 supersede，會到寫檔前的契約檢查才整批失敗，
     # 連其他類的結果與 error 快照都發布不了。ETL 對無效日期只告警（has_invalid），
     # 主檔確實可能出現；在這裡就判該類 error，維持單類故障隔離。
-    bad_dates = [r.get("公告更新時間") for r in main_rows if parse_date(r.get("公告更新時間")) is None]
+    # 雲端覆審 F1：須整串合法（不容頭尾空白）。帶空白的日期會讓比較單位與網站不符而產生
+    # 假 supersede，且其日期違反前端契約，整份補抓檔會被前端拒收。
+    bad_dates = [r.get("公告更新時間") for r in main_rows if strict_date(r.get("公告更新時間")) is None]
     if bad_dates:
         raise ScrapeError(f"{category}：主檔有 {len(bad_dates)} 列公告日期無效（{bad_dates[:3]}），無法可靠比對")
     main_items = [(main_unit(r, category), r) for r in main_rows]
@@ -730,7 +743,7 @@ def _is_main_timestamp(value):
 
 def _date_not_future(value, today):
     """真實曆日且不晚於 today＋FUTURE_TOLERANCE_DAYS；與前端 isValidAnnouncementDate 同一規則。"""
-    parsed = parse_date(value)
+    parsed = strict_date(value)
     limit = (today + timedelta(days=FUTURE_TOLERANCE_DAYS)).strftime("%Y/%m/%d")
     return parsed is not None and parsed <= limit
 
@@ -762,7 +775,7 @@ def _supersede_problems(e, category):
                       else e.get("指紋") is None)
     checks = [
         (isinstance(e.get("品名鍵"), str) and e["品名鍵"], "品名鍵為空"),
-        (parse_date(e.get("公告更新時間")) is not None, "日期無效"),
+        (strict_date(e.get("公告更新時間")) is not None, "日期無效"),
         (isinstance(e.get("許可證字號"), str) and e["許可證字號"].strip(), "證號為空"),
         (fingerprint_ok, "指紋型別與類別不符"),
     ]

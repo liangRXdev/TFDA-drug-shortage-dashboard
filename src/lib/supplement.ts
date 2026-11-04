@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------
-// dsms 公告頁補抓（增量 S，規格 .ai-review/plan-supplement.md r4）
+// dsms 公告頁補抓（增量 S，規格 .ai-review/plan-supplement.md r6）
 //
 // 補抓端（scripts/supplement_scraper.py）已算好 additions／supersedes，
 // 前端只做機械式套用：顯示結果 = f(原始主檔, 補抓檔)，每次都從原始主檔計算，
