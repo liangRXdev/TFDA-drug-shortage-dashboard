@@ -267,13 +267,6 @@ body {
   box-shadow: 0 0 0 4px var(--blue-dim), 0 2px 8px rgba(15, 42, 71, 0.08);
 }
 
-/* ── Main ──────────────────────────────────────────────────── */
-.main {
-  max-width: 960px; margin: 0 auto;
-  padding: 28px 20px 80px;
-  display: flex; flex-direction: column; gap: 32px;
-}
-
 /* ── Recent Dashboard ──────────────────────────────────────── */
 .recent {
   background: var(--bg-card);
@@ -526,9 +519,9 @@ body {
 .rc__chevron--open { transform: rotate(180deg); }
 
 /* ── Section ───────────────────────────────────────────────── */
+/* 不設 overflow:hidden——大圓角會把標題列左側色條切成斜角；圓角裁切交給 .section__body */
 .section { 
   border-radius: var(--radius-2xl);
-  overflow: hidden;
 }
 
 .section__header { 
@@ -930,6 +923,8 @@ body {
 
 /* ── Main Container ────────────────────────────────────────── */
 .main {
+  /* flex column 子元素加 margin:auto 會失去 stretch、縮成內容寬，須明設 width */
+  width: 100%;
   max-width: 1200px; 
   margin: 0 auto;
   padding: 32px 24px 120px;
@@ -1050,13 +1045,12 @@ body {
   }
   
   .section__header {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 8px;
   }
   
   .section__title {
     font-size: 15px;
+    min-width: 0;
   }
   
   .main { 
