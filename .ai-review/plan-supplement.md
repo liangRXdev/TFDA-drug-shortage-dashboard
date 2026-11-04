@@ -1,6 +1,6 @@
 # 規格：dsms 公告頁補抓（supplement）
 
-> 增量代號 **S**（Supplement）。撰於 2026-10-26，**r5**（r4 依 `plan-verdict-supplement.md` 第一～三輪修訂；r5 回寫實作時的實測發現與使用者決策，不涉架構）。
+> 增量代號 **S**（Supplement）。撰於 2026-10-26，**r6**（r4 依 `plan-verdict-supplement.md` 第一～三輪修訂；r5 回寫實作時的實測發現與使用者決策，不涉架構；r6 於 2026-11-03 修訂 D9 熔斷計數，2026-11-04 使用者確認保留總量上限）。
 > 基線：`main` @ `c822cd6`。
 > 先例：`TFDA-drug-recall-dashboard` 的 `supplement_scraper.py` / `update_supplement.py` /
 > 前端 SUP 區塊（同一作者、同一類問題、已上線運作）。
@@ -316,3 +316,4 @@ D10 的「同一次執行」＝三類的 `success_run_id` 都等於頂層 `run_i
 | r5 | §1.1 查明 4 筆舊公告為空證號核醫套組；§6.2 證號允許字母前綴、空證號排除並記錄；schema 加 `excluded_no_license` | 實作實測、使用者決策 A |
 | r5 | D7(a) 單頁不輸出分頁列；§6.3 時鐘偏差容許 5 分鐘 | 實作實測 |
 | r5 | §9 補兩項後續；新增「實作驗收紀錄」 | — |
+| r6 | D9 熔斷只計孤兒 supersedes（同類 additions 無同證號新版可一對一配對者；空證號永不配對），另設總量上限 `max(cap, floor(10% × |O|))`；§7 A6 補 r6 配對情境 | 2026-11-03 s3 正常修訂誤觸熔斷（commit `f619ec8`）；總量上限 2026-11-04 使用者確認保留 |
