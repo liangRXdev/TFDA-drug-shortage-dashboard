@@ -1277,3 +1277,37 @@ def test_t_r4_a7_fullwidth_english_quotes():
     rec = sup.validate_detail(detail, row, "s3", TODAY)
     assert rec["中文品名"] == f"{zh}\n{en}"                     # 顯示文字保留全形
     assert sup.record_unit(rec, "s3")[0] == "\"井田\"可嗽平錠"   # 比較鍵經 NFKC 轉成半形
+
+
+# ----------------------------------------------------------------------
+# 雲端覆審 2026-11-05 F1：日期格式的跨端契約。前端 isSupersede／isValidAnnouncementDate
+# 要求整串 `YYYY/MM/DD`（不容頭尾空白）；Python 的 parse_date 會先 strip。
+# Python 端若較寬，會寫出前端整份拒收的補抓檔（三類一起消失，破壞 R3 故障隔離）。
+# ETL（fetch_fda_data.parse_upstream_date）也是 strip 後才驗，主檔原值可能帶空白。
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("raw", ["2026/09/01 ", " 2026/09/01", "2026/09/01\n"])
+def test_f1_main_date_with_whitespace_fails_only_that_category(tmp_path, raw):
+    row = opendata_row("1", raw, "空白日期藥", "EN")
+    main_path = main_file(tmp_path, {"54504_with_alternative": [row]})
+    site = FakeSite({"s3": [drug("1150800", "2026/09/01", "空白日期藥")], "s4": [],
+                     "s2": [drug("1150700", "2026/10/20", "新恢復藥", license_no="衛部藥輸字第000061號")]})
+    code, out = run_once(tmp_path, site, main_path)
+    s3 = out["categories"]["s3"]
+    assert code == 2 and s3["state"] == "error" and "日期無效" in s3["error"]
+    assert out["categories"]["s2"]["state"] == "ok"
+    # DATE_PATTERN 的 `$` 會放過結尾 \n，不能拿來斷言；以 strict_date 整串比對
+    for c in out["categories"].values():
+        assert all(sup.strict_date(e["公告更新時間"]) == e["公告更新時間"] for e in c["supersedes"])
+
+
+@pytest.mark.parametrize("raw", ["2026/10/20 ", " 2026/10/20"])
+def test_f1_previous_addition_date_with_whitespace_is_discarded(tmp_path, raw):
+    main_path, out = _valid_previous(tmp_path)
+    out["categories"]["s2"]["additions"][0]["公告更新時間"] = raw
+    assert sup.output_problems(out, NOW.date()) != []
+
+
+@pytest.mark.parametrize("raw", ["2026/10/01 ", " 2026/10/01"])
+def test_f1_supersede_date_with_whitespace_violates_contract(raw):
+    entry = {"品名鍵": "x", "公告更新時間": raw, "許可證字號": "衛署藥製字第000001號", "指紋": "x"}
+    assert sup._supersede_problems(entry, "s3") != []

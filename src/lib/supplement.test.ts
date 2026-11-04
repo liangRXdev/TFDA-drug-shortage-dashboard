@@ -543,5 +543,8 @@ describe('isSupplementData：逐筆驗證', () => {
     ['base.last_updated 型別錯（R1：原本會讓 parseLastUpdated 拋例外）',
       d => { (d.categories.s3.base as unknown as { last_updated: number }).last_updated = 123; }],
     ['base 是字串', d => { (d.categories.s3 as unknown as { base: string }).base = 'x'; }],
+    // 雲端覆審 F1：前端日期契約整串比對、不容頭尾空白；Python 端 strict_date 必須同樣嚴格
+    ['addition 日期帶頭尾空白', d => { d.categories.s3.additions[0].公告更新時間 = ' 2026/10/21'; }],
+    ['supersede 日期帶頭尾空白', d => { d.categories.s3.supersedes = [{ 品名鍵: 'x', 公告更新時間: '2026/01/01 ', 許可證字號: 'y', 指紋: 'z' }]; }],
   ])('%s → false', (_n, mutate) => expect(isSupplementData(broken(mutate))).toBe(false));
 });
