@@ -4,6 +4,11 @@
 dsms 的 CI 可達性未驗證（plan-supplement.md D3）。只能在台灣網路環境的這台機器跑。
 
 行為：
+  0. 上次執行若在「寫檔後、commit 前」被中斷（排程逾時、睡眠、關機），會留下未提交的
+     補抓檔，之後每次 pull --rebase 都失敗、整套停擺（2026-11-18 實例，停了 6 天）。
+     工作目錄**只有**補抓檔變動時，還原成 HEAD 版本再繼續：它是本程式的產出、本次
+     會重新產生，未發布的內容丟掉無損。有其他已追蹤檔的變動（人為修改、功能分支殘留）一律
+     不碰（未追蹤檔照舊忽略），中止並在 log 列出路徑。
   1. 先 `git pull --rebase`——每週 CI 會自動 commit 主檔，不先同步必定 push 失敗。
   2. 跑 supplement_scraper.py。exit 0（全 ok）與 2（部分類別 error）都照常發布：
      **error 快照也要發布**，前端才看得到紅色警示；只發布成功快照的話，失敗要等
@@ -78,8 +83,37 @@ def push_with_retry(run, logger):
     return True
 
 
+# 補抓檔可接受的殘留狀態：未暫存修改、已暫存修改、兩者皆有（中斷在 add 與 commit 之間）
+_STALE_CODES = {" M", "M ", "MM"}
+
+
+def discard_stale_supplement(run, logger):
+    """清除上次中斷留下的未提交補抓檔。回傳 False 表示工作目錄有其他變動，應中止。"""
+    r = run(["git", "status", "--porcelain"])
+    if r.returncode != 0:
+        logger(f"FATAL: git status 失敗：{r.stderr.strip()}")
+        return False
+    # 未追蹤檔（??）本來就不會讓 pull --rebase 失敗，不納入判斷，以免多一個中止理由
+    lines = [line for line in r.stdout.splitlines() if line.strip() and not line.startswith("??")]
+    if not lines:
+        return True
+    others = [line for line in lines if not (line[:2] in _STALE_CODES and line[3:] == SUPPLEMENT_REL)]
+    if others:
+        logger("FATAL: 工作目錄有補抓檔以外的未提交變動，不自動清除；中止：" + "；".join(others))
+        return False
+    r = run(["git", "checkout", "HEAD", "--", SUPPLEMENT_REL])
+    if r.returncode != 0:
+        logger(f"FATAL: 還原上次中斷留下的補抓檔失敗：{r.stderr.strip()}")
+        return False
+    logger("偵測到上次執行中斷留下的未提交補抓檔，已還原為 HEAD 版本（本次會重新產生）。")
+    return True
+
+
 def main(run=run_cmd, logger=log, python=sys.executable):
     logger("=== dsms 補抓作業開始 ===")
+
+    if not discard_stale_supplement(run, logger):
+        return EXIT_ABORT
 
     r = run(["git", "pull", "--rebase"])
     if r.returncode != 0:
