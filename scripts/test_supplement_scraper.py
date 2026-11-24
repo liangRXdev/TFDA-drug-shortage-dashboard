@@ -1392,3 +1392,11 @@ def test_f3_a4_detail_redirect_category_mismatch_is_error():
     wrong = "https://dsms.fda.gov.tw/DrugInfo.aspx?No=abc%3d&s=2&from=DrugList&r=1"
     with pytest.raises(sup.ScrapeError, match="非預期頁"):
         client_with(FakeResponse(200, wrong)).open_detail("s3", {"__VIEWSTATE": "v"}, "t")
+
+
+def test_client_overrides_requests_default_user_agent():
+    """真的 requests.Session 預設帶 python-requests UA，dsms 對它回 404（2026-11-12 起）。
+    setdefault 會被預設值擋掉，必須確認實際送出的是自訂 UA。"""
+    ua = sup.DsmsClient(sleep=lambda _s: None).session.headers["User-Agent"]
+    assert ua == "Mozilla/5.0 (TFDA-drug-shortage-dashboard)"
+    assert not ua.lower().startswith("python-requests")

@@ -42,6 +42,7 @@ TAIPEI_TZ = timezone(timedelta(hours=8))
 
 DSMS_HOST = "dsms.fda.gov.tw"
 BASE_URL = f"https://{DSMS_HOST}/DrugList.aspx"
+USER_AGENT = "Mozilla/5.0 (TFDA-drug-shortage-dashboard)"
 CATEGORIES = {
     "s3": {"s": 3, "dataset": "54504_with_alternative",
            "title": "建議使用替代藥品或其他建議", "compare_content": True},
@@ -460,7 +461,9 @@ def validate_detail(detail, row, category, today):
 class DsmsClient:
     def __init__(self, session=None, interval=REQUEST_INTERVAL, sleep=time.sleep):
         self.session = session or requests.Session()
-        self.session.headers.setdefault("User-Agent", "Mozilla/5.0 (TFDA-drug-shortage-dashboard)")
+        # 必須直接覆寫：requests.Session 預設已帶 python-requests/x 的 UA，setdefault 不會生效。
+        # dsms 自 2026-11-12 起對 python-requests UA 一律回 404（同一網址換 UA 即 200）。
+        self.session.headers["User-Agent"] = USER_AGENT
         self.interval = interval
         self.sleep = sleep
 
