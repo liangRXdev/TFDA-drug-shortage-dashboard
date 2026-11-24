@@ -1,33 +1,23 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-17T09:10:04+08:00",
-  "run_id": "20261117T091004-75002425",
+  "generated_at": "2026-11-24T10:28:57+08:00",
+  "run_id": "20261124T102857-626d9210",
   "categories": {
     "s3": {
       "dataset": "54504_with_alternative",
-      "state": "error",
-      "error": "s3：HTTP 404",
-      "last_success_at": "2026-11-11T09:10:04+08:00",
-      "success_run_id": "20261111T091004-730b7d53",
+      "state": "ok",
+      "error": null,
+      "last_success_at": "2026-11-24T10:28:57+08:00",
+      "success_run_id": "20261124T102857-626d9210",
       "base": {
-        "last_updated": "2026-11-06 06:56:48",
-        "upstream_max_date": "2026/10/29"
+        "last_updated": "2026-11-20 07:56:14",
+        "upstream_max_date": "2026/11/02"
       },
       "scanned": {
         "pages": 20,
         "rows": 250
       },
-      "additions": [
-        {
-          "編號": "dsms-1150539",
-          "公告更新時間": "2026/11/02",
-          "中文品名": "普力馬林陰道乳膏\nPREMARIN VAGINAL CREAM",
-          "許可證字號": "衛署藥輸字第019489號",
-          "供應狀態": "1.美商惠氏藥廠（亞洲）股份有限公司台灣分公司表示因生產問題，致國際性短缺，預計116年4月恢復供應。\r\n\r\n2. 經盤點國內同成分同含量同劑型藥品供應情形，目前尚有國產藥品可供臨床評估使用，有助於降低原廠藥品供應短缺對國內病人用藥之影響，如：\r\n\"黃氏\"培美爾陰道乳膏 14 g Premare Vaginal Cream \"H.S.\"(衛部藥製字第060503號)(訂購請洽：黃氏製藥股份有限公司)\r\n\r\n或由專業醫療人員評估後，使用不同成分類似適應症之局部性藥品替代，並持續監測療效及副作用，如\r\n薇詩婷陰道錠 Esvatin Vaginal Tablets(衛部藥製字第059868號)(訂購請洽：健喬信元醫藥生技股份有限公司)",
-          "_來源": "dsms",
-          "_案件編號": "1150539"
-        }
-      ],
+      "additions": [],
       "supersedes": [],
       "excluded_no_license": [
         {
@@ -54,13 +44,13 @@
     },
     "s4": {
       "dataset": "54505_no_alternative",
-      "state": "error",
-      "error": "s4：HTTP 404",
-      "last_success_at": "2026-11-11T09:10:04+08:00",
-      "success_run_id": "20261111T091004-730b7d53",
+      "state": "ok",
+      "error": null,
+      "last_success_at": "2026-11-24T10:28:57+08:00",
+      "success_run_id": "20261124T102857-626d9210",
       "base": {
-        "last_updated": "2026-11-06 06:56:48",
-        "upstream_max_date": "2026/10/29"
+        "last_updated": "2026-11-20 07:56:14",
+        "upstream_max_date": "2026/11/02"
       },
       "scanned": {
         "pages": 1,
@@ -72,13 +62,13 @@
     },
     "s2": {
       "dataset": "54506_resolved",
-      "state": "error",
-      "error": "s2：HTTP 404",
-      "last_success_at": "2026-11-11T09:10:04+08:00",
-      "success_run_id": "20261111T091004-730b7d53",
+      "state": "ok",
+      "error": null,
+      "last_success_at": "2026-11-24T10:28:57+08:00",
+      "success_run_id": "20261124T102857-626d9210",
       "base": {
-        "last_updated": "2026-11-06 06:56:48",
-        "upstream_max_date": "2026/10/29"
+        "last_updated": "2026-11-20 07:56:14",
+        "upstream_max_date": "2026/11/02"
       },
       "scanned": {
         "pages": 32,
