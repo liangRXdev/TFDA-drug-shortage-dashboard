@@ -52,15 +52,24 @@ export default function StatusBanners({
           </span>
         </div>
       )}
-      {/* 公告頁補抓狀態（增量 S）：紅色逐條列出、互不遮蔽 */}
+      {/* 公告頁補抓狀態（增量 S）：預設收合成一行結論（手機版面），展開後逐條列出、互不遮蔽。
+          收合時仍須看得到「可能缺新公告／新舊並列」與「以官網為準」，不能只剩「有問題」。 */}
       {supplement && supplement.warnings.length > 0 && (
         <div role="alert" data-banner="supplement-warning" style={RED_STYLE}>
-          {supplement.warnings.map(w => <div key={w}>⚠️ {w}</div>)}
-          <div>
-            🔗 <a href="https://dsms.fda.gov.tw/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
-              食藥署西藥供應資訊網站
-            </a>
-          </div>
+          <details>
+            <summary style={{ cursor: 'pointer' }}>
+              ⚠️ 官網補抓異常：可能缺新公告或新舊版本並列，請以食藥署官網為準
+              <span style={{ fontWeight: 400, textDecoration: 'underline' }}>（展開 {supplement.warnings.length} 則）</span>
+            </summary>
+            <ul style={{ margin: '6px 0 0', paddingLeft: '1.5em', fontWeight: 400 }}>
+              {supplement.warnings.map(w => <li key={w}>{w}</li>)}
+            </ul>
+            <div style={{ marginTop: '6px' }}>
+              🔗 <a href="https://dsms.fda.gov.tw/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                食藥署西藥供應資訊網站
+              </a>
+            </div>
+          </details>
         </div>
       )}
       {supplement && supplement.info && (

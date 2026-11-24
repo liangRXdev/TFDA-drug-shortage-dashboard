@@ -27,9 +27,20 @@ describe('StatusBanners：實際渲染', () => {
   it('多條補抓紅色警示全部渲染，並附官網連結', () => {
     const html = render({ supplement: result({ trusted: false, warnings: ['甲類失敗。', '乙類過期。', '新舊版本並列。'] }) });
     expect(html).toContain('data-banner="supplement-warning"');
-    for (const w of ['甲類失敗。', '乙類過期。', '新舊版本並列。']) expect(text(html)).toContain(`⚠️ ${w}`);
+    for (const w of ['甲類失敗。', '乙類過期。', '新舊版本並列。']) expect(text(html)).toContain(w);
     expect(html).toContain('href="https://dsms.fda.gov.tw/"');
     expect(html).not.toContain('data-banner="supplement-info"');
+  });
+
+  it('補抓警示預設收合：摘要列含結論、以官網為準與則數，細節收在 details 內', () => {
+    const html = render({ supplement: result({ trusted: false, warnings: ['甲類失敗。', '乙類過期。'] }) });
+    expect(html).toMatch(/<details>/);
+    expect(html).not.toMatch(/<details[^>]*\sopen/);
+    const summary = text(html.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)![1]);
+    expect(summary).toContain('新舊版本並列');
+    expect(summary).toContain('請以食藥署官網為準');
+    expect(summary).toContain('展開 2 則');
+    expect(summary).not.toContain('甲類失敗');
   });
 
   it('可信且有差異 → 只有琥珀資訊，沒有紅色', () => {
