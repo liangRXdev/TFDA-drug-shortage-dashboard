@@ -18,8 +18,9 @@ import update_supplement as wrap  # noqa: E402
 class FakeRunner:
     """依指令前綴回傳預先排好的結果；remote 模擬遠端最後收到的 commit。"""
 
-    def __init__(self, scrape_code=0, changed=True, push_results=(0,), pull_results=(0,)):
+    def __init__(self, scrape_code=0, changed=True, push_results=(0,), pull_results=(0,), dirty=""):
         self.scrape_code = scrape_code
+        self.dirty = dirty      # 開始前 `git status --porcelain`（全工作目錄）的輸出
         self.changed = changed
         self.push_results = list(push_results)
         self.pull_results = list(pull_results)
@@ -34,6 +35,8 @@ class FakeRunner:
             code = self.pull_results.pop(0) if self.pull_results else 0
         elif cmd[0] != "git":
             code = self.scrape_code
+        elif cmd == ["git", "status", "--porcelain"]:
+            out = self.dirty
         elif cmd[:2] == ["git", "status"]:
             out = " M public/data/supply_supplement.json\n" if self.changed else ""
         elif cmd[:2] == ["git", "commit"]:
@@ -70,7 +73,7 @@ def test_push_rejected_then_retry_succeeds_without_force():
     code, _ = run_main(r)
     assert code == 0 and r.remote == [wrap.COMMIT_MESSAGE]
     git = [c for c in r.calls if c[0] == "git"]
-    assert [c[1] for c in git] == ["pull", "status", "add", "commit", "push", "pull", "push"]
+    assert [c[1] for c in git] == ["status", "pull", "status", "add", "commit", "push", "pull", "push"]
     assert not any("--force" in c or "-f" in c for c in r.calls)
 
 
@@ -99,7 +102,37 @@ def test_main_file_unusable_no_commit():
 def test_initial_pull_failure_aborts_before_scraping():
     r = FakeRunner(pull_results=(1,))
     code, _ = run_main(r)
-    assert code == 1 and len(r.calls) == 1
+    assert code == 1 and [c[1] for c in r.calls] == ["status", "pull"]
+
+
+@pytest.mark.parametrize("code", [" M", "M ", "MM"])
+def test_stale_supplement_from_interrupted_run_is_discarded(code):
+    r = FakeRunner(dirty=f"{code} {wrap.SUPPLEMENT_REL}\n")
+    rc, logs = run_main(r)
+    assert rc == 0 and r.remote == [wrap.COMMIT_MESSAGE]
+    assert r.calls[1] == ["git", "checkout", "HEAD", "--", wrap.SUPPLEMENT_REL]
+    assert r.calls[2][:2] == ["git", "pull"]
+    assert any("中斷" in line for line in logs)
+
+
+def test_untracked_files_are_ignored_as_before():
+    r = FakeRunner(dirty="?? notes.txt\n")
+    rc, _ = run_main(r)
+    assert rc == 0 and r.remote == [wrap.COMMIT_MESSAGE]
+    assert not any(c[:2] == ["git", "checkout"] for c in r.calls)
+
+
+@pytest.mark.parametrize("dirty", [
+    " M src/App.tsx\n",
+    f" M {wrap.SUPPLEMENT_REL}\n M src/App.tsx\n",
+    "?? notes.txt\n M src/App.tsx\n",
+    f"R  old.json -> {wrap.SUPPLEMENT_REL}\n",
+])
+def test_other_dirty_paths_abort_without_touching_anything(dirty):
+    r = FakeRunner(dirty=dirty)
+    rc, logs = run_main(r)
+    assert rc == 1 and len(r.calls) == 1
+    assert any("補抓檔以外" in line for line in logs)
 
 
 def test_unchanged_file_no_commit():
@@ -241,3 +274,31 @@ def test_real_git_persistent_rejection_is_exit_3_and_nothing_published(repos, mo
     with pytest.raises(subprocess.CalledProcessError):
         remote_file(repos["remote"], wrap.SUPPLEMENT_REL)
     assert git(repos["work"], "log", "-1", "--format=%s").strip() == wrap.COMMIT_MESSAGE
+
+
+def test_real_git_interrupted_run_leftover_is_recovered(repos, monkeypatch):
+    """2026-11-18 實例：上次寫檔後未 commit 就被中斷 → 這次仍能 pull、重抓並發布。"""
+    work = repos["work"]
+    (work / wrap.SUPPLEMENT_REL).write_text(SNAPSHOT_ALL_OK, encoding="utf-8")
+    git(work, "add", "-A")
+    git(work, "commit", "-qm", "published")
+    git(work, "push", "-q")
+    (work / wrap.SUPPLEMENT_REL).write_text('{"leftover": true}', encoding="utf-8")
+    git(work, "add", wrap.SUPPLEMENT_REL)        # 已暫存：中斷在 add 與 commit 之間
+    monkeypatch.setenv("STUB_PAYLOAD", SNAPSHOT_ERROR)
+    monkeypatch.setenv("STUB_CODE", "2")
+    code = wrap.main(run=real_runner(work), logger=lambda _m: None, python=sys.executable)
+    assert code == 2
+    assert remote_file(repos["remote"], wrap.SUPPLEMENT_REL) == SNAPSHOT_ERROR
+    assert git(work, "status", "--porcelain").strip() == ""
+
+
+def test_real_git_other_dirty_file_aborts_and_is_preserved(repos, monkeypatch):
+    work = repos["work"]
+    target = work / "public/data/supply_status_latest.json"
+    target.write_text('{"hand-edit": true}', encoding="utf-8")
+    monkeypatch.setenv("STUB_PAYLOAD", SNAPSHOT_ERROR)
+    code = wrap.main(run=real_runner(work), logger=lambda _m: None, python=sys.executable)
+    assert code == 1
+    assert target.read_text(encoding="utf-8") == '{"hand-edit": true}'
+    assert not (work / wrap.SUPPLEMENT_REL).exists()
