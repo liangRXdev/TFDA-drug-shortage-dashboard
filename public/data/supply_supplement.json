@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-25T10:14:08+08:00",
-  "run_id": "20261125T101408-456ca434",
+  "generated_at": "2026-11-27T11:51:27+08:00",
+  "run_id": "20261127T115127-45c432b4",
   "categories": {
     "s3": {
       "dataset": "54504_with_alternative",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-25T10:14:08+08:00",
-      "success_run_id": "20261125T101408-456ca434",
+      "last_success_at": "2026-11-27T11:51:27+08:00",
+      "success_run_id": "20261127T115127-45c432b4",
       "base": {
-        "last_updated": "2026-11-20 07:56:14",
+        "last_updated": "2026-11-27 09:11:12",
         "upstream_max_date": "2026/11/02"
       },
       "scanned": {
@@ -46,10 +46,10 @@
       "dataset": "54505_no_alternative",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-25T10:14:08+08:00",
-      "success_run_id": "20261125T101408-456ca434",
+      "last_success_at": "2026-11-27T11:51:27+08:00",
+      "success_run_id": "20261127T115127-45c432b4",
       "base": {
-        "last_updated": "2026-11-20 07:56:14",
+        "last_updated": "2026-11-27 09:11:12",
         "upstream_max_date": "2026/11/02"
       },
       "scanned": {
@@ -64,10 +64,10 @@
       "dataset": "54506_resolved",
       "state": "ok",
       "error": null,
-      "last_success_at": "2026-11-25T10:14:08+08:00",
-      "success_run_id": "20261125T101408-456ca434",
+      "last_success_at": "2026-11-27T11:51:27+08:00",
+      "success_run_id": "20261127T115127-45c432b4",
       "base": {
-        "last_updated": "2026-11-20 07:56:14",
+        "last_updated": "2026-11-27 09:11:12",
         "upstream_max_date": "2026/11/02"
       },
       "scanned": {
